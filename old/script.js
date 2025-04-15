@@ -5,20 +5,6 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 }).addTo(map);
 
-// Marcador inicial (Anita Garibaldi)
-const initialLocation = [-30.0346, -51.2177];
-const initialMarker = L.marker(initialLocation, {
-  icon: L.divIcon({
-    className: "map-marker-icon",
-    iconSize: [20, 20],
-  }),
-})
-  .addTo(map)
-  .bindPopup(
-    "<b>Local de desaparecimento</b><br>O cão saiu correndo da Petshop aqui"
-  )
-  .openPopup();
-
 // Array para armazenar avistamentos
 let avistamentos = [];
 let routeLine = null;
@@ -392,6 +378,11 @@ document
       enderecoCompleto += ", Porto Alegre";
     }
 
+    // Determinar se esse é o primeiro avistamento ou se é marcado como inicial
+    const isInicial =
+      avistamentos.length === 0 ||
+      descricao === "Local de desaparecimento do cão";
+
     const avistamento = {
       id: Date.now(),
       data: data,
@@ -406,12 +397,62 @@ document
         bairro: bairro,
         cidade: "Porto Alegre",
       },
+      isInicial: isInicial,
     };
 
+    // Se for marcado como inicial e já existem outros avistamentos,
+    // remover a marca "inicial" dos outros
+    if (isInicial && avistamentos.length > 0) {
+      avistamentos.forEach((a) => (a.isInicial = false));
+
+      // Atualizar marcadores e timeline para refletir a mudança
+      markers.forEach((marker) => {
+        const avistamento = avistamentos.find(
+          (a) => a.id === marker.avistamentoId
+        );
+        const markerColor =
+          avistamento && avistamento.isInicial ? "#ffc107" : "#dc3545";
+
+        marker.setIcon(
+          L.divIcon({
+            className: "map-marker-icon",
+            iconSize: [20, 20],
+            html: `<div style="background-color:${markerColor};border-radius:50%;width:20px;height:20px;border:3px solid white;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>`,
+          })
+        );
+      });
+
+      // Atualizar classes na timeline
+      document.querySelectorAll(".timeline-item").forEach((item) => {
+        item.classList.remove("is-initial");
+      });
+    }
+
+    // Atualizar alerta se for o ponto inicial
+    if (isInicial) {
+      document.querySelector(".alert-info").innerHTML = `
+        <strong>Última localização conhecida:</strong> ${
+          avistamento.descricao
+        } - 
+        ${new Date(avistamento.data).toLocaleDateString()} às ${new Date(
+        avistamento.data
+      ).toLocaleTimeString()}
+        ${
+          avistamento.endereco
+            ? `<br><small>${avistamento.endereco}</small>`
+            : ""
+        }
+      `;
+    }
+
+    // Adicionar avistamento à lista
     avistamentos.push(avistamento);
+
+    // Renderizar na UI
     renderAvistamento(avistamento);
     addMarkerToMap(avistamento);
 
+    // Limpar formulário
     this.reset();
     document.getElementById("cidade").value = "Porto Alegre";
     document.getElementById("addressDetails").classList.remove("show");
@@ -420,24 +461,27 @@ document
       clickMarker = null;
     }
 
-    if (avistamentos.length >= 1) {
-      calcularRota();
-    }
+    // Recalcular rota
+    calcularRota();
 
     showToast("Avistamento cadastrado com sucesso!", "success");
   });
 
 // Função para adicionar marcador no mapa
 function addMarkerToMap(avistamento) {
+  // Define cor diferente para o local inicial
+  const markerColor = avistamento.isInicial ? "#ffc107" : "#dc3545";
+
   const marker = L.marker([avistamento.lat, avistamento.lng], {
     icon: L.divIcon({
       className: "map-marker-icon",
       iconSize: [20, 20],
+      html: `<div style="background-color:${markerColor};border-radius:50%;width:20px;height:20px;border:3px solid white;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>`,
     }),
   }).addTo(map).bindPopup(`
-            <b>Avistamento em ${new Date(
-              avistamento.data
-            ).toLocaleString()}</b><br>
+            <b>${
+              avistamento.isInicial ? "Local de desaparecimento" : "Avistamento"
+            } em ${new Date(avistamento.data).toLocaleString()}</b><br>
             ${avistamento.descricao}<br>
             <small>${
               avistamento.endereco ||
@@ -460,6 +504,7 @@ function renderAvistamento(avistamento) {
 
   const div = document.createElement("div");
   div.className = "timeline-item";
+  if (avistamento.isInicial) div.classList.add("is-initial");
   div.dataset.id = avistamento.id;
 
   let enderecoHtml = "";
@@ -467,7 +512,7 @@ function renderAvistamento(avistamento) {
     const det = avistamento.detalhesEndereco;
     enderecoHtml = `
             <small class="text-muted d-block">
-                ${det.logradouro}${det.numero ? ", " + det.numero : ""}
+                ${det.logradouro || ""}${det.numero ? ", " + det.numero : ""}
                 ${det.bairro ? " - " + det.bairro : ""}
             </small>
             <small class="text-muted">${avistamento.lat.toFixed(
@@ -485,9 +530,14 @@ function renderAvistamento(avistamento) {
   div.innerHTML = `
         <div class="d-flex justify-content-between align-items-start">
             <div>
-                <h6 class="mb-1">${new Date(
-                  avistamento.data
-                ).toLocaleString()}</h6>
+                <h6 class="mb-1">
+                  ${
+                    avistamento.isInicial
+                      ? '<span class="badge bg-warning text-dark me-1">Início</span>'
+                      : ""
+                  }
+                  ${new Date(avistamento.data).toLocaleString()}
+                </h6>
                 <p class="mb-1 small">${avistamento.descricao}</p>
                 ${enderecoHtml}
             </div>
@@ -499,7 +549,15 @@ function renderAvistamento(avistamento) {
         </div>
     `;
 
-  document.getElementById("listaAvistamentos").prepend(div);
+  // Inserir na linha do tempo
+  const listaAvistamentos = document.getElementById("listaAvistamentos");
+
+  // Se for o ponto inicial, coloca primeiro
+  if (avistamento.isInicial) {
+    listaAvistamentos.insertBefore(div, listaAvistamentos.firstChild);
+  } else {
+    listaAvistamentos.appendChild(div);
+  }
 
   div.addEventListener("click", function (e) {
     if (e.target.tagName !== "BUTTON") {
@@ -515,10 +573,15 @@ function highlightAvistamento(id) {
   });
 
   markers.forEach((marker) => {
+    const avistamento = avistamentos.find((a) => a.id === marker.avistamentoId);
+    const markerColor =
+      avistamento && avistamento.isInicial ? "#ffc107" : "#dc3545";
+
     marker.setIcon(
       L.divIcon({
         className: "map-marker-icon",
         iconSize: [20, 20],
+        html: `<div style="background-color:${markerColor};border-radius:50%;width:20px;height:20px;border:3px solid white;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>`,
       })
     );
   });
@@ -528,11 +591,15 @@ function highlightAvistamento(id) {
 
   const marker = markers.find((m) => m.avistamentoId === id);
   if (marker) {
+    const avistamento = avistamentos.find((a) => a.id === id);
+    const markerColor =
+      avistamento && avistamento.isInicial ? "#ffc107" : "#dc3545";
+
     marker.setIcon(
       L.divIcon({
         className: "map-marker-icon",
         iconSize: [24, 24],
-        html: '<div style="background-color:#dc3545;border-radius:50%;width:24px;height:24px;border:3px solid white;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>',
+        html: `<div style="background-color:${markerColor};border-radius:50%;width:24px;height:24px;border:3px solid white;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>`,
       })
     );
     map.setView(marker.getLatLng(), map.getZoom(), { animate: true });
@@ -544,19 +611,42 @@ function highlightAvistamento(id) {
 window.removerAvistamento = function (id, event) {
   if (event) event.stopPropagation();
 
-  if (!confirm("Tem certeza que deseja remover este avistamento?")) return;
+  const avistamento = avistamentos.find((a) => a.id === id);
 
+  // Verificar se é o local inicial
+  if (avistamento && avistamento.isInicial) {
+    if (
+      !confirm(
+        "Este é o local de desaparecimento do cão. Tem certeza que deseja removê-lo?"
+      )
+    ) {
+      return;
+    }
+
+    // Restaurar a mensagem de alerta
+    document.querySelector(".alert-info").innerHTML = `
+      <strong>Última localização conhecida:</strong> O cão saiu correndo da
+      Petshop próximo à Anita Garibaldi em 15/04/2024
+    `;
+  } else if (!confirm("Tem certeza que deseja remover este avistamento?")) {
+    return;
+  }
+
+  // Remove do array de avistamentos
   avistamentos = avistamentos.filter((a) => a.id !== id);
 
+  // Remove da timeline
   const item = document.querySelector(`.timeline-item[data-id="${id}"]`);
   if (item) item.remove();
 
+  // Remove o marcador do mapa
   const markerIndex = markers.findIndex((m) => m.avistamentoId === id);
   if (markerIndex !== -1) {
     map.removeLayer(markers[markerIndex]);
     markers.splice(markerIndex, 1);
   }
 
+  // Se não houver mais avistamentos
   if (avistamentos.length === 0) {
     const div = document.createElement("div");
     div.id = "semAvistamentos";
@@ -570,7 +660,56 @@ window.removerAvistamento = function (id, event) {
             </div>
         `;
   }
+  // Se removeu o ponto inicial e ainda existem outros avistamentos
+  else if (avistamento && avistamento.isInicial && avistamentos.length > 0) {
+    // O primeiro avistamento restante se torna o ponto inicial
+    avistamentos[0].isInicial = true;
 
+    // Atualizar a UI
+    const firstItem = document.querySelector(
+      `.timeline-item[data-id="${avistamentos[0].id}"]`
+    );
+    if (firstItem) {
+      firstItem.classList.add("is-initial");
+      const header = firstItem.querySelector("h6");
+      if (header && !header.querySelector(".badge")) {
+        header.innerHTML =
+          '<span class="badge bg-warning text-dark me-1">Início</span> ' +
+          header.innerHTML;
+      }
+    }
+
+    // Atualizar o marcador
+    const firstMarker = markers.find(
+      (m) => m.avistamentoId === avistamentos[0].id
+    );
+    if (firstMarker) {
+      firstMarker.setIcon(
+        L.divIcon({
+          className: "map-marker-icon",
+          iconSize: [20, 20],
+          html: '<div style="background-color:#ffc107;border-radius:50%;width:20px;height:20px;border:3px solid white;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>',
+        })
+      );
+    }
+
+    // Atualizar a mensagem de alerta
+    document.querySelector(".alert-info").innerHTML = `
+      <strong>Última localização conhecida:</strong> ${
+        avistamentos[0].descricao
+      } - 
+      ${new Date(avistamentos[0].data).toLocaleDateString()} às ${new Date(
+      avistamentos[0].data
+    ).toLocaleTimeString()}
+      ${
+        avistamentos[0].endereco
+          ? `<br><small>${avistamentos[0].endereco}</small>`
+          : ""
+      }
+    `;
+  }
+
+  // Recalcula a rota
   calcularRota();
 
   showToast("Avistamento removido", "info");
@@ -595,15 +734,22 @@ function calcularRota() {
     return;
   }
 
-  const avistamentosOrdenados = [...avistamentos].sort(
+  // Ordenar avistamentos por data, mas garantir que o ponto inicial seja o primeiro
+  let avistamentosOrdenados = [...avistamentos].sort(
     (a, b) => new Date(a.data) - new Date(b.data)
   );
 
-  const pontosRota = [
-    initialLocation,
-    ...avistamentosOrdenados.map((a) => [a.lat, a.lng]),
-  ];
+  // Encontrar o ponto inicial e movê-lo para o início
+  const indexInicial = avistamentosOrdenados.findIndex((a) => a.isInicial);
+  if (indexInicial > 0) {
+    const inicial = avistamentosOrdenados.splice(indexInicial, 1)[0];
+    avistamentosOrdenados.unshift(inicial);
+  }
 
+  // Obter pontos da rota
+  const pontosRota = avistamentosOrdenados.map((a) => [a.lat, a.lng]);
+
+  // Criar a linha da rota
   routeLine = L.polyline(pontosRota, {
     color: "red",
     weight: 4,
@@ -611,20 +757,34 @@ function calcularRota() {
     className: "route-line",
   }).addTo(map);
 
-  const ultimoPonto = pontosRota[pontosRota.length - 1];
-  const raio = calcularRaioBusca(pontosRota);
+  // Calcular a área de busca
+  if (pontosRota.length >= 1) {
+    const ultimoPonto = pontosRota[pontosRota.length - 1];
+    const raio = calcularRaioBusca(pontosRota);
 
-  predictionArea = L.circle(ultimoPonto, {
-    radius: raio,
-    className: "prediction-area",
-    color: "red",
-    fillOpacity: 0.2,
-  }).addTo(map);
+    predictionArea = L.circle(ultimoPonto, {
+      radius: raio,
+      className: "prediction-area",
+      color: "red",
+      fillOpacity: 0.2,
+    }).addTo(map);
 
-  const bounds = routeLine.getBounds().extend(predictionArea.getBounds());
-  map.fitBounds(bounds, { padding: [50, 50] });
+    const bounds = routeLine.getBounds().extend(predictionArea.getBounds());
+    map.fitBounds(bounds, { padding: [50, 50] });
 
-  document.getElementById("areaInfo").innerHTML = `
+    let direcaoTexto = "";
+    let distanciaTexto = "";
+
+    if (pontosRota.length >= 2) {
+      direcaoTexto = `<p><strong>Direção geral:</strong> ${calcularDirecaoGeral(
+        pontosRota
+      )}</p>`;
+      distanciaTexto = `<p class="mb-0"><strong>Distância total percorrida:</strong> ${(
+        calcularDistanciaTotal(pontosRota) / 1000
+      ).toFixed(1)} km</p>`;
+    }
+
+    document.getElementById("areaInfo").innerHTML = `
         <div class="alert alert-success">
             <h5><i class="fas fa-bullseye"></i> Área de Busca Atualizada</h5>
             <p><strong>Último avistamento:</strong> ${
@@ -644,22 +804,29 @@ function calcularRota() {
             <p><strong>Área de busca recomendada:</strong> Raio de ${(
               raio / 1000
             ).toFixed(1)} km ao redor do último avistamento</p>
-            <p><strong>Direção geral:</strong> ${calcularDirecaoGeral(
-              pontosRota
-            )}</p>
-            <p class="mb-0"><strong>Distância total percorrida:</strong> ${(
-              calcularDistanciaTotal(pontosRota) / 1000
-            ).toFixed(1)} km</p>
+            ${direcaoTexto}
+            ${distanciaTexto}
         </div>
     `;
+  } else {
+    // Se houver apenas um ponto
+    const bounds = routeLine.getBounds();
+    map.fitBounds(bounds, { padding: [50, 50] });
+
+    document.getElementById("areaInfo").innerHTML = `
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> Cadastre mais um avistamento para calcular a área de busca.
+        </div>
+    `;
+  }
 
   hideLoading();
-  showToast("Área de busca calculada com sucesso", "success");
+  showToast("Rota atualizada com sucesso", "success");
 }
 
 // Função auxiliar para calcular raio da área de busca
 function calcularRaioBusca(pontos) {
-  if (pontos.length < 2) return 1000;
+  if (pontos.length < 2) return 1000; // Raio padrão se houver apenas um ponto
 
   const primeiroPonto = pontos[0];
   const ultimoPonto = pontos[pontos.length - 1];
@@ -682,7 +849,7 @@ function calcularRaioBusca(pontos) {
 
 // Função auxiliar para calcular direção geral
 function calcularDirecaoGeral(pontos) {
-  if (pontos.length < 3) return "Indeterminada";
+  if (pontos.length < 2) return "Indeterminada";
 
   const primeiro = pontos[0];
   const ultimo = pontos[pontos.length - 1];

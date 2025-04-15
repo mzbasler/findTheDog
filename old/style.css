@@ -155,3 +155,71 @@
 .address-details.show {
   display: block;
 }
+.timeline-item.is-initial::before {
+  background: #ffc107;
+  border: 2px solid white;
+}
+
+.timeline-item.is-initial.active::before {
+  background: #e0a800;
+  transform: scale(1.2);
+}
+
+#localDesaparecimentoModal .modal-header {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.timeline-item:first-child {
+  margin-top: 15px;
+}
+
+.timeline-item.is-initial::before {
+  background: #ffc107;
+  border: 2px solid white;
+}
+
+.timeline-item.is-initial.active::before {
+  background: #e0a800;
+  transform: scale(1.2);
+}
+
+#localDesaparecimentoModal .modal-header {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.timeline-item:first-child {
+  margin-top: 15px;
+}
+
+/* Estilo para o botão de definir local */
+#definirLocalBtn {
+  margin-bottom: 20px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 193, 7, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+  }
+}
+.timeline-item.is-initial::before {
+  background: #ffc107;
+  border: 2px solid white;
+}
+
+.timeline-item.is-initial.active::before {
+  background: #e0a800;
+  transform: scale(1.2);
+}
+
+.timeline-item:first-child {
+  margin-top: 15px;
+}

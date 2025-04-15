@@ -1,222 +1,171 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Rastreador de Cão Perdido - Porto Alegre</title>
+    <title>Sistema de Rastreamento de Cães Perdidos</title>
+    <!-- Bootstrap CSS e ícones -->
     <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css"
       rel="stylesheet"
     />
     <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.1/font/bootstrap-icons.min.css"
       rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
     />
+    <!-- Leaflet CSS -->
     <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
       rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
-    <link rel="stylesheet" href="style.css" />
+    <style>
+      body {
+        overflow-x: hidden;
+      }
+      .timeline-item {
+        padding: 10px;
+        border-left: 2px solid #007bff;
+        margin-left: 15px;
+        position: relative;
+        margin-bottom: 15px;
+      }
+      .timeline-item::before {
+        content: "";
+        width: 12px;
+        height: 12px;
+        background-color: #007bff;
+        border-radius: 50%;
+        position: absolute;
+        left: -7px;
+        top: 15px;
+      }
+      .timeline-item:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+      }
+      .card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        border: 1px solid rgba(0, 0, 0, 0.125);
+      }
+      .map-controls {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+      }
+      .table-preview {
+        max-height: 200px;
+        overflow-y: auto;
+        margin-top: 15px;
+        font-size: 0.875rem;
+      }
+    </style>
   </head>
   <body>
-    <div class="container-fluid py-4">
-      <div class="toast-container">
-        <!-- Toasts serão adicionados aqui -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#">
+          <i class="bi bi-geo-alt-fill me-2"></i>PetRadar: Rastreamento de Cães
+          Perdidos
+        </a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+              <a
+                class="nav-link"
+                href="#"
+                data-bs-toggle="modal"
+                data-bs-target="#helpModal"
+              >
+                <i class="bi bi-question-circle me-1"></i>Ajuda
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container-fluid p-3">
+      <!-- Barra de ferramentas superior -->
+      <div class="row mb-3">
+        <div class="col-12">
+          <div class="card">
+            <div
+              class="card-body d-flex justify-content-between align-items-center py-2"
+            >
+              <div>
+                <button
+                  class="btn btn-primary me-2"
+                  type="button"
+                  data-bs-toggle="offcanvas"
+                  data-bs-target="#formSidebar"
+                >
+                  <i class="bi bi-plus-circle"></i> Novo Avistamento
+                </button>
+                <button
+                  class="btn btn-outline-secondary me-2"
+                  data-bs-toggle="modal"
+                  data-bs-target="#importModal"
+                >
+                  <i class="bi bi-upload"></i> Importar Dados
+                </button>
+                <button class="btn btn-danger me-2" id="resetButton">
+                  <i class="bi bi-trash"></i> Limpar Todos Dados
+                </button>
+              </div>
+              <div class="d-flex align-items-center">
+                <span class="me-3"
+                  ><strong id="totalSightings">0</strong> avistamentos</span
+                >
+                <span class="me-3"
+                  ><strong id="totalDistance">0</strong> km percorridos</span
+                >
+                <span>Área: <strong id="bufferArea">0</strong> km²</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <header class="text-center mb-4">
-        <h1 class="display-4">
-          <i class="fas fa-dog text-danger"></i> Rastreador de Cão Perdido
-        </h1>
-        <p class="lead">
-          Ajude a encontrar nosso amigo perdido em Porto Alegre
-        </p>
-        <div class="alert alert-info">
-          <strong>Última localização conhecida:</strong> O cão saiu correndo da
-          Petshop próximo à Anita Garibaldi em 15/04/2024
-        </div>
-      </header>
-
+      <!-- Layout principal -->
       <div class="row">
-        <div class="col-md-4">
-          <div class="info-card">
-            <h4><i class="fas fa-map-marker-alt"></i> Cadastrar Avistamento</h4>
-            <form id="avistamentoForm">
-              <div class="form-section">
-                <div class="form-section-title">
-                  <i class="fas fa-calendar-alt"></i> Data e Hora
-                </div>
-                <div class="mb-3">
-                  <input
-                    type="datetime-local"
-                    class="form-control"
-                    id="dataAvistamento"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div class="form-section">
-                <div class="form-section-title">
-                  <i class="fas fa-align-left"></i> Descrição
-                </div>
-                <div class="mb-3">
-                  <textarea
-                    class="form-control"
-                    id="descricao"
-                    rows="3"
-                    placeholder="Ex: Cão visto correndo em direção ao parque..."
-                    required
-                  ></textarea>
-                </div>
-              </div>
-
-              <div class="form-section">
-                <div class="form-section-title">
-                  <i class="fas fa-map"></i> Localização
-                </div>
-
-                <div class="address-search">
-                  <label for="endereco" class="form-label"
-                    >Buscar por Endereço</label
-                  >
-                  <div class="input-group mb-2">
-                    <input
-                      type="text"
-                      class="form-control"
-                      id="endereco"
-                      placeholder="Ex: Rua Coronel Bordini, 414"
-                    />
-                    <button
-                      class="btn btn-outline-primary"
-                      type="button"
-                      id="buscarEndereco"
-                    >
-                      <i class="fas fa-search"></i> Buscar
-                    </button>
-                  </div>
-                  <div class="address-results" id="addressResults"></div>
-
-                  <div class="address-details" id="addressDetails">
-                    <div class="row g-2 mt-2">
-                      <div class="col-md-8">
-                        <label for="logradouro" class="form-label"
-                          >Logradouro</label
-                        >
-                        <input
-                          type="text"
-                          class="form-control"
-                          id="logradouro"
-                        />
-                      </div>
-                      <div class="col-md-4">
-                        <label for="numero" class="form-label">Número</label>
-                        <input type="text" class="form-control" id="numero" />
-                      </div>
-                      <div class="col-md-6">
-                        <label for="bairro" class="form-label">Bairro</label>
-                        <input type="text" class="form-control" id="bairro" />
-                      </div>
-                      <div class="col-md-6">
-                        <label for="cidade" class="form-label">Cidade</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          id="cidade"
-                          value="Porto Alegre"
-                          readonly
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="mb-3">
-                  <label class="form-label">Coordenadas Geográficas</label>
-                  <div class="coordinate-inputs">
-                    <div class="form-group">
-                      <label for="latitude" class="form-label">Latitude</label>
-                      <input
-                        type="text"
-                        class="form-control"
-                        id="latitude"
-                        placeholder="-30.123456"
-                        required
-                      />
-                    </div>
-                    <div class="form-group">
-                      <label for="longitude" class="form-label"
-                        >Longitude</label
-                      >
-                      <input
-                        type="text"
-                        class="form-control"
-                        id="longitude"
-                        placeholder="-51.123456"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div class="d-flex gap-2">
-                  <button
-                    type="button"
-                    class="btn btn-outline-secondary flex-grow-1"
-                    id="usarMinhaLocalizacao"
-                  >
-                    <i class="fas fa-location-arrow"></i> Minha Localização
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-outline-secondary flex-grow-1"
-                    id="selecionarNoMapa"
-                  >
-                    <i class="fas fa-map-pin"></i> Selecionar no Mapa
-                  </button>
-                </div>
-              </div>
-
-              <div class="d-grid gap-2 mt-3">
-                <button type="submit" class="btn btn-primary">
-                  <i class="fas fa-plus-circle"></i> Cadastrar Avistamento
-                </button>
-                <button type="button" id="calcularArea" class="btn btn-success">
-                  <i class="fas fa-search-location"></i> Calcular Área de Busca
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div class="info-card">
-            <h4>
-              <i class="fas fa-history"></i> Linha do Tempo de Avistamentos
-            </h4>
-            <div id="listaAvistamentos" class="timeline">
-              <div class="text-center text-muted py-3" id="semAvistamentos">
-                Nenhum avistamento registrado ainda
-              </div>
+        <!-- Mapa expandido -->
+        <div class="col-lg-9">
+          <div class="card">
+            <div
+              class="card-header d-flex justify-content-between align-items-center"
+            >
+              <span>Mapa de Avistamentos</span>
+              <small class="text-muted"
+                >Último avistamento:
+                <strong id="lastSighting">Nenhum</strong></small
+              >
+            </div>
+            <div class="card-body p-0">
+              <div id="map" style="height: 80vh"></div>
             </div>
           </div>
         </div>
 
-        <div class="col-md-8">
-          <div class="position-relative">
-            <div id="map"></div>
+        <!-- Linha do tempo lateral -->
+        <div class="col-lg-3">
+          <div class="card h-100">
+            <div class="card-header">Linha do Tempo</div>
             <div
-              class="loading-spinner spinner-border text-primary"
-              role="status"
-              id="mapLoading"
+              class="card-body p-2"
+              style="overflow-y: auto; max-height: 80vh"
             >
-              <span class="visually-hidden">Carregando...</span>
-            </div>
-          </div>
-          <div class="info-card mt-3">
-            <h4><i class="fas fa-bullseye"></i> Área de Busca</h4>
-            <div id="areaInfo">
-              <div class="alert alert-warning">
-                <i class="fas fa-info-circle"></i> Cadastre pelo menos 2
-                avistamentos para calcular a área de busca.
+              <div id="timeline" class="timeline">
+                <p class="text-center text-muted" id="noSightingsMessage">
+                  Nenhum avistamento registrado
+                </p>
               </div>
             </div>
           </div>
@@ -224,8 +173,1438 @@
       </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-    <script src="script.js"></script>
+    <!-- Sidebar para formulário de avistamento (oculto por padrão) -->
+    <div
+      class="offcanvas offcanvas-start"
+      tabindex="-1"
+      id="formSidebar"
+      aria-labelledby="formSidebarLabel"
+    >
+      <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="formSidebarLabel">
+          Adicionar Avistamento
+        </h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="offcanvas"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="offcanvas-body">
+        <form id="sightingForm">
+          <div class="mb-3">
+            <label for="dateTime" class="form-label">Data e Hora*</label>
+            <input
+              type="datetime-local"
+              class="form-control"
+              id="dateTime"
+              required
+            />
+          </div>
+          <div class="mb-3">
+            <label for="location" class="form-label"
+              >Localização (endereço ou coordenadas)</label
+            >
+            <input
+              type="text"
+              class="form-control"
+              id="location"
+              placeholder="Ex: Rua Exemplo, 123 ou -23.456, -46.789"
+            />
+            <small class="text-muted"
+              >Você também pode clicar no mapa para definir a localização</small
+            >
+          </div>
+          <div class="mb-3">
+            <label for="notes" class="form-label">Observações</label>
+            <textarea class="form-control" id="notes" rows="3"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            Adicionar Avistamento
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal de Importação -->
+    <div
+      class="modal fade"
+      id="importModal"
+      tabindex="-1"
+      aria-labelledby="importModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="importModalLabel">
+              Importar Avistamentos
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="fileInput" class="form-label"
+                >Selecione um arquivo CSV ou Excel</label
+              >
+              <input
+                class="form-control"
+                type="file"
+                id="fileInput"
+                accept=".csv,.xlsx,.xls"
+              />
+              <small class="text-muted"
+                >O arquivo deve conter colunas para data, hora e
+                coordenadas</small
+              >
+            </div>
+            <div class="alert alert-info">
+              <h6>Formato esperado:</h6>
+              <p class="mb-1">- Coluna para data (ex: "Data")</p>
+              <p class="mb-1">- Coluna para horário (ex: "Horário")</p>
+              <p class="mb-1">
+                - Coluna para coordenadas (formato: "-30.0271, -51.1940")
+              </p>
+              <p class="mb-1">- Coluna para observações (ex: "Obs")</p>
+              <p class="mb-0">
+                - Ou colunas separadas para latitude e longitude
+              </p>
+            </div>
+            <div id="tablePreview"></div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Cancelar
+            </button>
+            <button type="button" class="btn btn-primary" id="importButton">
+              Importar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Ajuda -->
+    <div
+      class="modal fade"
+      id="helpModal"
+      tabindex="-1"
+      aria-labelledby="helpModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="helpModalLabel">Ajuda - PetRadar</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <h6 class="border-bottom pb-2">Como usar o sistema</h6>
+            <p>
+              O PetRadar ajuda a rastrear avistamentos de cães perdidos e
+              visualizar padrões de movimentação.
+            </p>
+
+            <div class="mb-3">
+              <h6>
+                <i class="bi bi-plus-circle text-primary me-2"></i>Adicionar
+                avistamentos
+              </h6>
+              <ul>
+                <li>
+                  Clique no botão "Novo Avistamento" ou diretamente no mapa para
+                  registrar um ponto
+                </li>
+                <li>Preencha a data/hora e coordenadas (obrigatórios)</li>
+                <li>Adicione observações relevantes se necessário</li>
+              </ul>
+            </div>
+
+            <div class="mb-3">
+              <h6>
+                <i class="bi bi-upload text-primary me-2"></i>Importar dados
+              </h6>
+              <ul>
+                <li>
+                  Clique em "Importar Dados" para carregar planilhas CSV ou
+                  Excel
+                </li>
+                <li>
+                  O arquivo deve conter colunas para data/hora, latitude e
+                  longitude
+                </li>
+                <li>
+                  Formatos de data suportados: ISO, DD/MM/YYYY, entre outros
+                </li>
+              </ul>
+            </div>
+
+            <div class="mb-3">
+              <h6>
+                <i class="bi bi-map text-primary me-2"></i>Visualização no mapa
+              </h6>
+              <ul>
+                <li>
+                  Pontos conectados mostram a rota cronológica de avistamentos
+                </li>
+                <li>
+                  Círculo vermelho (1km de raio) indica a área atual de busca
+                </li>
+                <li>
+                  Clique nos marcadores para ver detalhes de cada avistamento
+                </li>
+              </ul>
+            </div>
+
+            <div class="mb-3">
+              <h6>
+                <i class="bi bi-clock-history text-primary me-2"></i>Linha do
+                tempo
+              </h6>
+              <ul>
+                <li>Exibe todos os avistamentos em ordem cronológica</li>
+                <li>Clique em um item para centralizar o mapa nesse local</li>
+                <li>Use o botão "Excluir" para remover um avistamento</li>
+              </ul>
+            </div>
+
+            <div class="alert alert-info">
+              <strong>Lembre-se:</strong> Os dados são armazenados apenas no seu
+              navegador. Se limpar os dados do navegador, perderá o histórico de
+              avistamentos.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+      // Variáveis globais
+      let sightings = []; // Inicializa vazio
+      let map, currentMarker, routeLine, bufferCircle;
+      let mapBaseLayer;
+
+      // Inicialização
+      document.addEventListener("DOMContentLoaded", function () {
+        // Garantir que o array de avistamentos esteja vazio ao iniciar
+        sightings = [];
+
+        // Inicializar o mapa
+        initMap();
+
+        // Carregar dados salvos (com verificação adequada)
+        loadSavedData();
+
+        // Configurar eventos do formulário
+        document
+          .getElementById("sightingForm")
+          .addEventListener("submit", function (e) {
+            e.preventDefault();
+            addSighting();
+            // Fechar o sidebar após adicionar avistamento
+            const offcanvasElement = document.getElementById("formSidebar");
+            const offcanvas = bootstrap.Offcanvas.getInstance(offcanvasElement);
+            offcanvas.hide();
+          });
+
+        // Configurar evento de importação
+        document
+          .getElementById("importButton")
+          .addEventListener("click", importFromFile);
+
+        // Configurar evento para pré-visualização do arquivo
+        document
+          .getElementById("fileInput")
+          .addEventListener("change", previewFile);
+
+        // Configurar botão de reset
+        document
+          .getElementById("resetButton")
+          .addEventListener("click", function () {
+            if (
+              confirm(
+                "Tem certeza que deseja excluir TODOS os avistamentos? Esta ação não pode ser desfeita."
+              )
+            ) {
+              // Limpar dados
+              sightings = [];
+              localStorage.removeItem("dogSightings");
+
+              // Atualizar visualizações
+              updateMap();
+              updateTimeline();
+              updateSearchAreaStats();
+
+              showAlert("Todos os avistamentos foram removidos", "info");
+            }
+          });
+      });
+
+      // Inicializar o mapa Leaflet
+      function initMap() {
+        // Inicializar com uma posição padrão (Brasil)
+        map = L.map("map").setView([-15.793889, -47.882778], 5);
+
+        // Adicionar camada de mapa base
+        mapBaseLayer = L.tileLayer(
+          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+          }
+        ).addTo(map);
+
+        // Adicionar evento de clique no mapa
+        map.on("click", function (e) {
+          const lat = e.latlng.lat.toFixed(6);
+          const lng = e.latlng.lng.toFixed(6);
+
+          // Preencher o campo de localização com as coordenadas
+          document.getElementById("location").value = `${lat}, ${lng}`;
+
+          // Mostrar um marcador temporário
+          if (currentMarker) {
+            map.removeLayer(currentMarker);
+          }
+          currentMarker = L.marker(e.latlng).addTo(map);
+          currentMarker.bindPopup("Localização selecionada").openPopup();
+
+          // Abrir o formulário se estiver fechado
+          const offcanvasElement = document.getElementById("formSidebar");
+          const offcanvas =
+            bootstrap.Offcanvas.getInstance(offcanvasElement) ||
+            new bootstrap.Offcanvas(offcanvasElement);
+          offcanvas.show();
+        });
+      }
+
+      // Carregar dados salvos do localStorage com validação
+      function loadSavedData() {
+        const savedData = localStorage.getItem("dogSightings");
+        if (savedData) {
+          try {
+            const parsed = JSON.parse(savedData);
+            // Verificar se os dados são um array válido
+            if (Array.isArray(parsed)) {
+              sightings = parsed;
+
+              // Validar cada item do array
+              const validSightings = [];
+              for (const item of sightings) {
+                if (
+                  item &&
+                  typeof item === "object" &&
+                  item.hasOwnProperty("lat") &&
+                  item.hasOwnProperty("lng") &&
+                  item.hasOwnProperty("dateTime") &&
+                  item.hasOwnProperty("id")
+                ) {
+                  validSightings.push(item);
+                }
+              }
+
+              // Usar apenas avistamentos válidos
+              sightings = validSightings;
+
+              // Atualizar visualizações se houver dados válidos
+              if (sightings.length > 0) {
+                updateMap();
+                updateTimeline();
+                updateSearchAreaStats();
+              }
+            } else {
+              console.error("Dados salvos não são um array válido");
+              sightings = [];
+              localStorage.removeItem("dogSightings");
+            }
+          } catch (e) {
+            console.error("Erro ao carregar dados salvos:", e);
+            sightings = [];
+            localStorage.removeItem("dogSightings");
+          }
+        } else {
+          sightings = []; // Garantir que array está vazio inicialmente
+          updateMap(); // Atualizar mapa vazio
+          updateTimeline(); // Atualizar linha do tempo vazia
+          updateSearchAreaStats(); // Atualizar estatísticas
+        }
+      }
+
+      // Salvar dados no localStorage
+      function saveData() {
+        localStorage.setItem("dogSightings", JSON.stringify(sightings));
+      }
+
+      // Adicionar novo avistamento
+      function addSighting() {
+        const dateTime = document.getElementById("dateTime").value;
+        const location = document.getElementById("location").value;
+        const notes = document.getElementById("notes").value;
+
+        if (!dateTime || !location) {
+          showAlert("Por favor, preencha a data/hora e localização.", "danger");
+          return;
+        }
+
+        // Parse da localização
+        let lat, lng;
+
+        // Verificar se é coordenada ou endereço
+        if (location.includes(",")) {
+          const coords = location
+            .split(",")
+            .map((coord) => parseFloat(coord.trim()));
+          if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+            lat = coords[0];
+            lng = coords[1];
+          } else {
+            showAlert(
+              "Formato de coordenadas inválido. Use: latitude, longitude",
+              "danger"
+            );
+            return;
+          }
+        } else {
+          showAlert(
+            "Por favor, forneça coordenadas no formato: latitude, longitude",
+            "danger"
+          );
+          return;
+        }
+
+        // Criar objeto de avistamento
+        const newSighting = {
+          id: Date.now(), // ID único baseado no timestamp
+          dateTime: dateTime,
+          lat: lat,
+          lng: lng,
+          notes: notes,
+          timestamp: new Date(dateTime).getTime(),
+        };
+
+        // Adicionar ao array de avistamentos
+        sightings.push(newSighting);
+
+        // Ordenar por data/hora
+        sightings.sort((a, b) => a.timestamp - b.timestamp);
+
+        // Atualizar visualizações
+        updateMap();
+        updateTimeline();
+        updateSearchAreaStats();
+
+        // Salvar no localStorage
+        saveData();
+
+        // Limpar formulário
+        document.getElementById("sightingForm").reset();
+        if (currentMarker) {
+          map.removeLayer(currentMarker);
+          currentMarker = null;
+        }
+
+        showAlert("Avistamento adicionado com sucesso!", "success");
+      }
+
+      // Função para exibir alertas
+      function showAlert(message, type) {
+        const alertDiv = document.createElement("div");
+        alertDiv.classList.add(
+          "alert",
+          `alert-${type}`,
+          "alert-dismissible",
+          "fade",
+          "show",
+          "position-fixed"
+        );
+        alertDiv.style.top = "20px";
+        alertDiv.style.right = "20px";
+        alertDiv.style.zIndex = "9999";
+
+        alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+
+        document.body.appendChild(alertDiv);
+
+        // Remover o alerta após 3 segundos
+        setTimeout(() => {
+          alertDiv.classList.remove("show");
+          setTimeout(() => alertDiv.remove(), 150);
+        }, 3000);
+      }
+
+      // Atualizar o mapa com os avistamentos
+      function updateMap() {
+        // Limpar marcadores existentes, mas manter a camada base
+        map.eachLayer(function (layer) {
+          if (layer !== mapBaseLayer && !(layer instanceof L.TileLayer)) {
+            map.removeLayer(layer);
+          }
+        });
+
+        // Se não houver avistamentos, parar aqui
+        if (!sightings || sightings.length === 0) return;
+
+        // Criar array para a linha da rota
+        const routePoints = sightings.map((s) => [s.lat, s.lng]);
+
+        // Adicionar marcadores numerados para cada avistamento
+        sightings.forEach((s, index) => {
+          // Criar ícone personalizado com número
+          const numberIcon = L.divIcon({
+            className: "custom-div-icon",
+            html: `<div style="background-color: #007bff; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white;">${
+              index + 1
+            }</div>`,
+            iconSize: [25, 25],
+            iconAnchor: [12, 12],
+          });
+
+          const marker = L.marker([s.lat, s.lng], { icon: numberIcon }).addTo(
+            map
+          );
+
+          // Formatar data para exibição
+          const date = new Date(s.dateTime);
+          const formattedDate =
+            date.toLocaleDateString("pt-BR") +
+            " " +
+            date.toLocaleTimeString("pt-BR");
+
+          // Exibir popup com informações
+          let popupContent = `
+                    <div style="min-width: 200px;">
+                        <h6 class="mb-2">Avistamento #${index + 1}</h6>
+                        <p class="mb-1"><strong>Data/Hora:</strong> ${formattedDate}</p>
+                        <p class="mb-1"><strong>Coordenadas:</strong> ${s.lat.toFixed(
+                          6
+                        )}, ${s.lng.toFixed(6)}</p>
+                        ${
+                          s.notes
+                            ? `<p class="mb-1"><strong>Observação:</strong> ${s.notes}</p>`
+                            : ""
+                        }
+                    </div>
+                `;
+
+          marker.bindPopup(popupContent);
+        });
+
+        // Adicionar linha de rota se houver mais de um avistamento
+        if (routePoints.length > 1) {
+          routeLine = L.polyline(routePoints, {
+            color: "blue",
+            weight: 3,
+          }).addTo(map);
+
+          // Adicionar buffer de 1km ao redor do último avistamento
+          const lastPoint = routePoints[routePoints.length - 1];
+          bufferCircle = L.circle(lastPoint, {
+            radius: 1000, // 1km em metros
+            color: "red",
+            fillColor: "#f03",
+            fillOpacity: 0.2,
+          }).addTo(map);
+        }
+
+        // Ajustar visualização para mostrar todos os pontos
+        if (routePoints.length > 0) {
+          const bounds = L.latLngBounds(routePoints);
+          map.fitBounds(bounds.pad(0.1)); // 10% de padding
+        }
+      }
+
+      // Atualizar a linha do tempo
+      function updateTimeline() {
+        const timeline = document.getElementById("timeline");
+        const noSightingsMsg = document.getElementById("noSightingsMessage");
+
+        // Limpar a linha do tempo atual
+        timeline.innerHTML = "";
+
+        if (!sightings || sightings.length === 0) {
+          timeline.appendChild(noSightingsMsg);
+          return;
+        }
+
+        // Criar os itens da linha do tempo
+        sightings.forEach((s, index) => {
+          const date = new Date(s.dateTime);
+          const formattedDate =
+            date.toLocaleDateString("pt-BR") +
+            " " +
+            date.toLocaleTimeString("pt-BR");
+
+          const timelineItem = document.createElement("div");
+          timelineItem.className = "timeline-item";
+
+          let itemContent = `<h6>Avistamento #${index + 1}</h6>`;
+          itemContent += `<p class="mb-1"><i class="bi bi-calendar-event"></i> ${formattedDate}</p>`;
+          itemContent += `<p class="mb-1"><i class="bi bi-geo-alt"></i> ${s.lat.toFixed(
+            6
+          )}, ${s.lng.toFixed(6)}</p>`;
+          if (s.notes && s.notes.length > 0) {
+            itemContent += `<p class="mb-2"><i class="bi bi-card-text"></i> <small>${
+              s.notes.length > 50 ? s.notes.substring(0, 50) + "..." : s.notes
+            }</small></p>`;
+          }
+          itemContent += `<button class="btn btn-sm btn-outline-danger" onclick="deleteSighting(${s.id})"><i class="bi bi-trash"></i> Excluir</button>`;
+
+          timelineItem.innerHTML = itemContent;
+          timeline.appendChild(timelineItem);
+
+          // Adicionar evento para centralizar o mapa ao clicar no item da linha do tempo
+          timelineItem.addEventListener("click", function (e) {
+            // Ignorar cliques no botão de excluir
+            if (
+              e.target.tagName === "BUTTON" ||
+              e.target.parentElement.tagName === "BUTTON"
+            )
+              return;
+            map.setView([s.lat, s.lng], 15);
+          });
+        });
+      }
+
+      // Atualizar estatísticas da área de busca
+      function updateSearchAreaStats() {
+        document.getElementById("totalSightings").textContent = sightings
+          ? sightings.length
+          : 0;
+
+        // Calcular distância total
+        let totalDist = 0;
+        if (sightings && sightings.length > 1) {
+          for (let i = 1; i < sightings.length; i++) {
+            const prev = [sightings[i - 1].lat, sightings[i - 1].lng];
+            const curr = [sightings[i].lat, sightings[i].lng];
+            totalDist += calculateDistance(prev[0], prev[1], curr[0], curr[1]);
+          }
+        }
+        document.getElementById("totalDistance").textContent =
+          totalDist.toFixed(2);
+
+        // Área do buffer (sempre 1km de raio = π r²)
+        const bufferAreaKm2 = Math.PI * 1 * 1;
+        document.getElementById("bufferArea").textContent =
+          bufferAreaKm2.toFixed(2);
+
+        // Último avistamento
+        if (sightings && sightings.length > 0) {
+          const last = sightings[sightings.length - 1];
+          const date = new Date(last.dateTime);
+          document.getElementById("lastSighting").textContent =
+            date.toLocaleDateString("pt-BR") +
+            " " +
+            date.toLocaleTimeString("pt-BR");
+        } else {
+          document.getElementById("lastSighting").textContent = "Nenhum";
+        }
+      }
+
+      // Função para calcular distância entre dois pontos em km (fórmula de Haversine)
+      function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Raio da Terra em km
+        const dLat = ((lat2 - lat1) * Math.PI) / 180;
+        const dLon = ((lon2 - lon1) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat1 * Math.PI) / 180) *
+            Math.cos((lat2 * Math.PI) / 180) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c; // Distância em km
+        return distance;
+      }
+
+      // Excluir um avistamento
+      function deleteSighting(id) {
+        if (confirm("Tem certeza que deseja excluir este avistamento?")) {
+          sightings = sightings.filter((s) => s.id !== id);
+          updateMap();
+          updateTimeline();
+          updateSearchAreaStats();
+          saveData();
+          showAlert("Avistamento excluído com sucesso", "info");
+        }
+      }
+
+      // Pré-visualização do arquivo selecionado
+      function previewFile() {
+        const fileInput = document.getElementById("fileInput");
+        const file = fileInput.files[0];
+
+        if (!file) return;
+
+        // Criar elemento para a pré-visualização
+        const previewDiv = document.createElement("div");
+        previewDiv.id = "tablePreview";
+        previewDiv.className = "table-preview";
+
+        const previewTitle = document.createElement("h6");
+        previewTitle.textContent = "Pré-visualização dos dados:";
+
+        const table = document.createElement("table");
+        table.className = "table table-sm table-striped table-bordered";
+
+        // Mostrar mensagem de carregamento
+        previewDiv.innerHTML =
+          '<div class="text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Processando arquivo...</div>';
+
+        // Remover pré-visualização anterior, se existir
+        const oldPreview = document.getElementById("tablePreview");
+        if (oldPreview) oldPreview.remove();
+
+        // Adicionar à modal
+        const modalBody = document.querySelector("#importModal .modal-body");
+        modalBody.appendChild(previewDiv);
+
+        // Processar o arquivo
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const contents = e.target.result;
+
+          try {
+            // Determinar o tipo de arquivo
+            if (file.name.endsWith(".csv")) {
+              // Processar CSV com PapaParse
+              Papa.parse(contents, {
+                header: true,
+                preview: 5, // Mostrar apenas 5 linhas na pré-visualização
+                complete: function (results) {
+                  displayPreviewTable(results.data, results.meta.fields);
+                },
+              });
+            } else {
+              // Processar Excel com SheetJS
+              const workbook = XLSX.read(contents, { type: "binary" });
+              const sheetName = workbook.SheetNames[0];
+              const worksheet = workbook.Sheets[sheetName];
+              const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+              if (data.length > 0) {
+                const headers = data[0];
+                const rows = data.slice(1, 6); // Primeiras 5 linhas para a pré-visualização
+
+                // Converter para o formato necessário para exibição
+                const previewData = rows.map((row) => {
+                  const rowObj = {};
+                  headers.forEach((header, i) => {
+                    rowObj[header] = row[i];
+                  });
+                  return rowObj;
+                });
+
+                displayPreviewTable(previewData, headers);
+              }
+            }
+          } catch (error) {
+            previewDiv.innerHTML = `<div class="alert alert-danger">Erro ao processar o arquivo: ${error.message}</div>`;
+          }
+        };
+
+        if (file.name.endsWith(".csv")) {
+          reader.readAsText(file);
+        } else {
+          reader.readAsBinaryString(file);
+        }
+      }
+
+      // Exibir tabela de pré-visualização
+      function displayPreviewTable(data, headers) {
+        const previewDiv = document.getElementById("tablePreview");
+        if (!previewDiv) return;
+
+        const table = document.createElement("table");
+        table.className = "table table-sm table-striped table-bordered";
+
+        // Criar cabeçalho da tabela
+        const thead = document.createElement("thead");
+        const headerRow = document.createElement("tr");
+
+        headers.forEach((header) => {
+          const th = document.createElement("th");
+          th.textContent = header;
+          th.style.fontSize = "0.8rem";
+          headerRow.appendChild(th);
+        });
+
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        // Criar corpo da tabela
+        const tbody = document.createElement("tbody");
+
+        data.forEach((row) => {
+          const tr = document.createElement("tr");
+
+          headers.forEach((header) => {
+            const td = document.createElement("td");
+            td.textContent = row[header] || "";
+            td.style.fontSize = "0.8rem";
+            tr.appendChild(td);
+          });
+
+          tbody.appendChild(tr);
+        });
+
+        table.appendChild(tbody);
+
+        // Limpar e adicionar a tabela
+        previewDiv.innerHTML = "";
+        previewDiv.appendChild(document.createElement("h6")).textContent =
+          "Pré-visualização dos dados:";
+        previewDiv.appendChild(table);
+      }
+
+      // Encontrar coluna no cabeçalho (case insensitive)
+      function findColumn(headers, possibleNames) {
+        const lowerHeaders = headers.map((h) => String(h).toLowerCase());
+
+        for (const name of possibleNames) {
+          const index = lowerHeaders.findIndex((h) => h.includes(name));
+          if (index !== -1) {
+            return headers[index];
+          }
+        }
+
+        return null;
+      }
+
+      // Importar avistamentos do arquivo
+      function importFromFile() {
+        const fileInput = document.getElementById("fileInput");
+        const file = fileInput.files[0];
+
+        if (!file) {
+          showAlert(
+            "Por favor, selecione um arquivo para importar.",
+            "warning"
+          );
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const contents = e.target.result;
+
+          try {
+            // Determinar o tipo de arquivo
+            if (file.name.endsWith(".csv")) {
+              // Processar CSV - tentar primeiro com cabeçalho
+              let results = Papa.parse(contents, {
+                header: true,
+                skipEmptyLines: true,
+              });
+
+              // Se não tiver headers ou tiver poucos dados, tentar sem cabeçalho
+              if (
+                results.data.length === 0 ||
+                Object.keys(results.data[0]).length <= 1
+              ) {
+                results = Papa.parse(contents, {
+                  header: false,
+                  skipEmptyLines: true,
+                });
+
+                // Verificar se temos pelo menos 3 colunas (Data, Horário, Coordenadas)
+                if (results.data[0] && results.data[0].length >= 3) {
+                  // Cabeçalhos artificiais mais específicos
+                  const headers = ["Data", "Horário", "Coordenadas", "Obs"];
+
+                  // Converter dados para formato com cabeçalho
+                  const formattedData = results.data.map((row) => {
+                    const obj = {};
+                    for (
+                      let i = 0;
+                      i < Math.min(headers.length, row.length);
+                      i++
+                    ) {
+                      obj[headers[i]] = row[i];
+                    }
+                    return obj;
+                  });
+
+                  processImportedData(formattedData, headers);
+                  return;
+                }
+              } else {
+                processImportedData(results.data, results.meta.fields);
+                return;
+              }
+            } else {
+              // Processar Excel com SheetJS
+              const workbook = XLSX.read(contents, { type: "binary" });
+              const sheetName = workbook.SheetNames[0];
+              const worksheet = workbook.Sheets[sheetName];
+
+              // Tentar com cabeçalhos
+              let data = XLSX.utils.sheet_to_json(worksheet);
+
+              if (data.length > 0) {
+                processImportedData(data, Object.keys(data[0]));
+                return;
+              } else {
+                // Tentar sem cabeçalhos
+                data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                if (data.length > 1 && data[0].length >= 3) {
+                  // Assumir primeira linha como cabeçalho
+                  const headers = data[0];
+                  const rows = data.slice(1);
+
+                  // Converter para formato com cabeçalho
+                  const formattedData = rows.map((row) => {
+                    const obj = {};
+                    for (
+                      let i = 0;
+                      i < Math.min(headers.length, row.length);
+                      i++
+                    ) {
+                      obj[headers[i]] = row[i];
+                    }
+                    return obj;
+                  });
+
+                  processImportedData(formattedData, headers);
+                  return;
+                } else if (data.length > 0 && data[0].length >= 3) {
+                  // Sem cabeçalho, criar cabeçalhos artificiais
+                  const headers = ["Data", "Horário", "Coordenadas", "Obs"];
+
+                  // Converter para formato com cabeçalho
+                  const formattedData = data.map((row) => {
+                    const obj = {};
+                    for (
+                      let i = 0;
+                      i < Math.min(headers.length, row.length);
+                      i++
+                    ) {
+                      obj[headers[i]] = row[i];
+                    }
+                    return obj;
+                  });
+
+                  processImportedData(formattedData, headers);
+                  return;
+                }
+              }
+            }
+
+            // Se chegou aqui, não conseguiu processar o arquivo
+            showAlert(
+              "Não foi possível reconhecer o formato do arquivo. Verifique se ele contém as colunas necessárias.",
+              "danger"
+            );
+          } catch (error) {
+            console.error("Erro na importação:", error);
+            showAlert(
+              `Erro ao processar o arquivo: ${error.message}`,
+              "danger"
+            );
+          }
+        };
+
+        if (file.name.endsWith(".csv")) {
+          reader.readAsText(file);
+        } else {
+          reader.readAsBinaryString(file);
+        }
+      }
+
+      // Processar dados importados
+      function processImportedData(data, headers) {
+        // Debug dos dados importados
+        console.log("Dados importados:", data);
+        console.log("Cabeçalhos:", headers);
+
+        // Se não houver dados, parar aqui
+        if (!data || data.length === 0) {
+          showAlert("Arquivo vazio ou sem dados válidos.", "warning");
+          return;
+        }
+
+        // Normalizar cabeçalhos para comparação case-insensitive
+        const normalizedHeaders = headers.map((h) =>
+          String(h).toLowerCase().trim()
+        );
+        console.log("Cabeçalhos normalizados:", normalizedHeaders);
+
+        // Identificar colunas com base no formato da tabela
+        let dateColumn = null;
+        let timeColumn = null;
+        let coordsColumn = null;
+        let latColumn = null;
+        let lngColumn = null;
+        let notesColumn = null;
+
+        // Tentar encontrar colunas pelos nomes comuns
+        for (let i = 0; i < normalizedHeaders.length; i++) {
+          const header = normalizedHeaders[i];
+          const originalHeader = headers[i];
+
+          if (
+            header.includes("data") ||
+            header.includes("date") ||
+            header.includes("dia")
+          ) {
+            dateColumn = originalHeader;
+          } else if (
+            header.includes("hora") ||
+            header.includes("time") ||
+            header.includes("horario") ||
+            header.includes("horário")
+          ) {
+            timeColumn = originalHeader;
+          } else if (header.includes("coord") || header.includes("location")) {
+            coordsColumn = originalHeader;
+          } else if (header.includes("lat") || header === "y") {
+            latColumn = originalHeader;
+          } else if (
+            header.includes("lon") ||
+            header.includes("lng") ||
+            header === "x"
+          ) {
+            lngColumn = originalHeader;
+          } else if (
+            header.includes("obs") ||
+            header.includes("note") ||
+            header.includes("coment") ||
+            header.includes("comment") ||
+            header.includes("desc")
+          ) {
+            notesColumn = originalHeader;
+            console.log("Coluna de observações encontrada:", originalHeader);
+          }
+        }
+
+        // Verificar se temos uma quarta coluna explicitamente chamada 'Obs'
+        const obsIndex = normalizedHeaders.findIndex((h) => h === "obs");
+        if (obsIndex !== -1 && !notesColumn) {
+          notesColumn = headers[obsIndex];
+          console.log("Coluna 'Obs' encontrada explicitamente:", notesColumn);
+        }
+
+        // Se não encontrar cabeçalhos por nome, tentar pela posição (assumindo ordem Data, Horário, Coordenadas, Comentários)
+        if (!dateColumn && normalizedHeaders.length >= 1) {
+          dateColumn = headers[0];
+        }
+        if (!timeColumn && normalizedHeaders.length >= 2) {
+          timeColumn = headers[1];
+        }
+        if (!coordsColumn && !latColumn && normalizedHeaders.length >= 3) {
+          coordsColumn = headers[2];
+        }
+        // Se não encontrou a coluna de comentários por nome, forçar a quarta coluna como comentários
+        if (!notesColumn && normalizedHeaders.length >= 4) {
+          notesColumn = headers[3];
+          console.log("Usando quarta coluna como observações:", headers[3]);
+        }
+
+        console.log("Colunas identificadas:", {
+          dateColumn,
+          timeColumn,
+          coordsColumn,
+          latColumn,
+          lngColumn,
+          notesColumn,
+        });
+
+        // Verificar se temos um formato válido para trabalhar
+        let hasCombinedFormat = dateColumn && timeColumn && coordsColumn;
+        let hasSeparateFormat =
+          dateColumn && timeColumn && latColumn && lngColumn;
+
+        if (!hasCombinedFormat && !hasSeparateFormat) {
+          // Último recurso: tentar inferir as colunas pela primeira linha
+          if (data.length > 0) {
+            const firstRow = data[0];
+            const keys = Object.keys(firstRow);
+
+            // Tentar encontrar quais colunas são o quê pelo conteúdo
+            for (const key of keys) {
+              const value = String(firstRow[key]).trim();
+
+              // Verificar formato de data
+              if (
+                !dateColumn &&
+                (value.match(/^\d{2}\/\d{2}\/\d{4}$/) ||
+                  value.match(/^\d{2}-\d{2}-\d{4}$/))
+              ) {
+                dateColumn = key;
+                continue;
+              }
+
+              // Verificar formato de hora
+              if (
+                !timeColumn &&
+                (value.match(/^\d{2}[h:]\d{2}$/) ||
+                  value.match(/^\d{2}h?$/) ||
+                  value.toLowerCase() === "manhã" ||
+                  value.toLowerCase() === "manha")
+              ) {
+                timeColumn = key;
+                continue;
+              }
+
+              // Verificar formato de coordenadas
+              if (
+                !coordsColumn &&
+                value.includes(",") &&
+                value.match(/[-\d.,]+/)
+              ) {
+                coordsColumn = key;
+                continue;
+              }
+
+              // Verificar latitude/longitude
+              if (!latColumn && !lngColumn) {
+                const isNumeric = !isNaN(parseFloat(value));
+                if (isNumeric) {
+                  const num = parseFloat(value);
+                  if (num >= -90 && num <= 90) {
+                    latColumn = key;
+                  } else if (num >= -180 && num <= 180) {
+                    lngColumn = key;
+                  }
+                }
+              }
+
+              // Verificar formato de observações/comentários
+              if (!notesColumn && value.length > 5 && /[a-zA-Z]/.test(value)) {
+                notesColumn = key;
+                continue;
+              }
+            }
+
+            // Verificar se temos um formato válido para trabalhar
+            hasCombinedFormat = dateColumn && timeColumn && coordsColumn;
+            hasSeparateFormat =
+              dateColumn && timeColumn && latColumn && lngColumn;
+
+            console.log("Inferência por conteúdo concluída:", {
+              dateColumn,
+              timeColumn,
+              coordsColumn,
+              latColumn,
+              lngColumn,
+              notesColumn,
+            });
+          }
+
+          if (!hasCombinedFormat && !hasSeparateFormat) {
+            // Ainda não conseguiu identificar - tentar pelo índice numérico (para tabelas sem cabeçalho)
+            const sample = data[0];
+            const keys = Object.keys(sample);
+
+            if (keys.length >= 3) {
+              dateColumn = keys[0];
+              timeColumn = keys[1];
+              coordsColumn = keys[2];
+              if (keys.length >= 4) {
+                notesColumn = keys[3];
+              }
+
+              console.log("Última tentativa - colunas por índice:", {
+                dateColumn,
+                timeColumn,
+                coordsColumn,
+                notesColumn,
+              });
+            }
+          }
+        }
+
+        // Verificar novamente
+        let finalCombinedFormat = dateColumn && timeColumn && coordsColumn;
+        let finalSeparateFormat =
+          dateColumn && timeColumn && latColumn && lngColumn;
+
+        if (!finalCombinedFormat && !finalSeparateFormat) {
+          showAlert(
+            "Formato da tabela não reconhecido. Verifique se há colunas para Data, Horário e Coordenadas, ou Data, Horário, Latitude e Longitude.",
+            "danger"
+          );
+          return;
+        }
+
+        // Converter para o formato de avistamentos
+        const importedSightings = [];
+        let errorsCount = 0;
+
+        data.forEach((row, index) => {
+          try {
+            let dateValue = row[dateColumn];
+            let timeValue = row[timeColumn];
+            let latValue, lngValue;
+
+            // Verificar se temos valores válidos para data e hora
+            if (!dateValue || !timeValue) {
+              console.log("Linha ignorada por falta de data/hora:", row);
+              errorsCount++;
+              return;
+            }
+
+            // Obter coordenadas dependendo do formato
+            if (coordsColumn) {
+              // Extrair lat e lng de uma única coluna de coordenadas
+              const coordsStr = String(row[coordsColumn]).trim();
+
+              // Padrão: latitude,longitude
+              const coordParts = coordsStr
+                .split(",")
+                .map((p) => parseFloat(p.trim()));
+
+              if (
+                coordParts.length === 2 &&
+                !isNaN(coordParts[0]) &&
+                !isNaN(coordParts[1])
+              ) {
+                latValue = coordParts[0];
+                lngValue = coordParts[1];
+              } else {
+                console.log("Coordenadas inválidas:", coordsStr);
+                errorsCount++;
+                return;
+              }
+            } else if (latColumn && lngColumn) {
+              // Usar colunas separadas
+              latValue = parseFloat(row[latColumn]);
+              lngValue = parseFloat(row[lngColumn]);
+
+              if (isNaN(latValue) || isNaN(lngValue)) {
+                console.log(
+                  "Latitude/longitude inválidas:",
+                  row[latColumn],
+                  row[lngColumn]
+                );
+                errorsCount++;
+                return;
+              }
+            } else {
+              console.log("Não foi possível obter coordenadas da linha:", row);
+              errorsCount++;
+              return;
+            }
+
+            const notesValue = notesColumn
+              ? String(row[notesColumn] || "").trim()
+              : "";
+            console.log("Valor da observação:", notesValue);
+
+            // Processar data e hora
+            let dateObj;
+
+            // Garantir que dateValue e timeValue sejam strings
+            const dateStr = String(dateValue).trim();
+            const timeStr = String(timeValue).trim();
+
+            console.log("Processando data/hora:", dateStr, timeStr);
+
+            // Processar data no formato DD/MM/YYYY ou qualquer formato DD/MM/YY
+            if (
+              dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/) ||
+              dateStr.match(/^\d{2}\/\d{2}\/\d{2}$/)
+            ) {
+              const parts = dateStr.split("/");
+              let year = parseInt(parts[2]);
+
+              // Ajustar ano se for formato de 2 dígitos (assumindo século 21)
+              if (year < 100) {
+                year += year < 50 ? 2000 : 1900;
+              }
+
+              const month = parseInt(parts[1]) - 1; // Mês em JS é 0-11
+              const day = parseInt(parts[0]);
+
+              // Processar hora (pode estar em diversos formatos)
+              let hours = 0,
+                minutes = 0;
+
+              if (
+                timeStr.toLowerCase() === "manhã" ||
+                timeStr.toLowerCase() === "manha"
+              ) {
+                hours = 8; // Assumir 8h para "manhã"
+              } else if (timeStr.match(/^\d{2}h\d{2}$/)) {
+                // Formato HHhMM
+                const timeParts = timeStr.split("h");
+                hours = parseInt(timeParts[0]);
+                minutes = parseInt(timeParts[1]);
+              } else if (timeStr.match(/^\d{2}:\d{2}$/)) {
+                // Formato HH:MM
+                const timeParts = timeStr.split(":");
+                hours = parseInt(timeParts[0]);
+                minutes = parseInt(timeParts[1]);
+              } else if (timeStr.match(/^\d{2}h$/)) {
+                // Formato HHh
+                hours = parseInt(timeStr.replace("h", ""));
+              } else {
+                // Tentar outros formatos
+                try {
+                  const tempTime = new Date(`2000-01-01T${timeStr}`);
+                  if (!isNaN(tempTime.getTime())) {
+                    hours = tempTime.getHours();
+                    minutes = tempTime.getMinutes();
+                  } else {
+                    // Último recurso: tentar extrair números do início da string
+                    const timeMatch = timeStr.match(
+                      /^(\d{1,2})[^\d]*(\d{1,2})?/
+                    );
+                    if (timeMatch) {
+                      hours = parseInt(timeMatch[1]);
+                      minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+                    } else {
+                      hours = 12; // Default se não conseguir extrair
+                    }
+                  }
+                } catch (e) {
+                  console.log("Erro ao processar hora:", timeStr, e);
+                  hours = 12; // Default
+                }
+              }
+
+              // Criar objeto de data
+              dateObj = new Date(year, month, day, hours, minutes);
+              console.log(
+                "Data criada:",
+                dateObj,
+                "de",
+                year,
+                month,
+                day,
+                hours,
+                minutes
+              );
+            } else {
+              // Tentar processar outros formatos de data
+              try {
+                // Tentativa 1: Combinar data e hora
+                dateObj = new Date(`${dateStr} ${timeStr}`);
+
+                // Se falhar, tentar outros formatos
+                if (isNaN(dateObj.getTime())) {
+                  throw new Error("Formato inválido");
+                }
+              } catch (e) {
+                // Tentativa 2: Usar Date.parse
+                try {
+                  const timestamp = Date.parse(`${dateStr} ${timeStr}`);
+                  if (!isNaN(timestamp)) {
+                    dateObj = new Date(timestamp);
+                  } else {
+                    throw new Error("Não foi possível parsear a data");
+                  }
+                } catch (e2) {
+                  // Vamos criar uma data simples para não perder as coordenadas
+                  console.error(
+                    `Erro ao processar data/hora: ${dateStr} ${timeStr}`,
+                    e2
+                  );
+                  dateObj = new Date(); // Usar data atual como fallback
+                }
+              }
+            }
+
+            // Validar se a data é válida
+            if (isNaN(dateObj.getTime())) {
+              console.log("Data inválida:", dateObj);
+              errorsCount++;
+              return;
+            }
+
+            // Converter para formato ISO para o input datetime-local
+            const isoDate = dateObj.toISOString().slice(0, 16);
+
+            // Criar objeto de avistamento
+            const newSighting = {
+              id: Date.now() + index, // ID único
+              dateTime: isoDate,
+              lat: latValue,
+              lng: lngValue,
+              notes: notesValue || "",
+              timestamp: dateObj.getTime(),
+            };
+
+            console.log("Avistamento criado:", newSighting);
+            importedSightings.push(newSighting);
+          } catch (e) {
+            console.error("Erro ao processar linha:", e, row);
+            errorsCount++;
+          }
+        });
+
+        // Adicionar avistamentos importados
+        if (importedSightings.length > 0) {
+          // Adicionar ao array existente
+          sightings = sightings.concat(importedSightings);
+
+          // Ordenar por data/hora
+          sightings.sort((a, b) => a.timestamp - b.timestamp);
+
+          // Atualizar visualizações
+          updateMap();
+          updateTimeline();
+          updateSearchAreaStats();
+
+          // Salvar no localStorage
+          saveData();
+
+          // Fechar modal
+          const modal = bootstrap.Modal.getInstance(
+            document.getElementById("importModal")
+          );
+          modal.hide();
+
+          // Mostrar mensagem de sucesso
+          showAlert(
+            `Importação concluída com sucesso! ${
+              importedSightings.length
+            } avistamentos importados.${
+              errorsCount > 0 ? ` ${errorsCount} linhas ignoradas.` : ""
+            }`,
+            "success"
+          );
+        } else {
+          showAlert(
+            "Não foi possível importar nenhum avistamento. Verifique o formato do arquivo.",
+            "danger"
+          );
+        }
+      }
+    </script>
   </body>
 </html>
