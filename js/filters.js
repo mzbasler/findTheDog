@@ -15,29 +15,33 @@ const FiltersModule = (function () {
     try {
       Utilities.log("Configurando eventos de filtro...");
 
-      // Mostrar/ocultar o painel de filtros
-      document
-        .getElementById("filterToggleBtn")
-        .addEventListener("click", toggleFilterPanel);
+      // Aguardar um momento para garantir que elementos DOM estejam disponíveis
+      setTimeout(() => {
+        // Verificar se os elementos existem antes de adicionar event listeners
+        const filterToggleBtn = document.getElementById("filterToggleBtn");
+        const timeFilterType = document.getElementById("timeFilterType");
 
-      // Mostrar/ocultar campos de horário personalizado
-      document
-        .getElementById("timeFilterType")
-        .addEventListener("change", handleTimeFilterTypeChange);
+        // Mostrar/ocultar o painel de filtros
+        if (filterToggleBtn) {
+          filterToggleBtn.addEventListener("click", toggleFilterPanel);
+        } else {
+          Utilities.logError("Elemento 'filterToggleBtn' não encontrado", null);
+        }
 
-      // Aplicar filtro
-      document
-        .getElementById("applyFilterBtn")
-        .addEventListener("click", applyFilters);
+        // Mostrar/ocultar campos de horário personalizado
+        if (timeFilterType) {
+          timeFilterType.addEventListener("change", handleTimeFilterTypeChange);
+        } else {
+          Utilities.logError("Elemento 'timeFilterType' não encontrado", null);
+        }
 
-      // Limpar filtro
-      document
-        .getElementById("clearFilterBtn")
-        .addEventListener("click", clearFilters);
+        Utilities.log("Eventos de filtro configurados com sucesso");
+      }, 200);
 
-      Utilities.log("Eventos de filtro configurados com sucesso");
+      return true;
     } catch (error) {
       Utilities.logError("Erro ao configurar eventos de filtro", error);
+      return false;
     }
   }
 
@@ -45,11 +49,20 @@ const FiltersModule = (function () {
    * Alterna a visibilidade do painel de filtros
    */
   function toggleFilterPanel() {
-    const filterContainer = document.getElementById("filterContainer");
-    if (filterContainer.style.display === "none") {
-      filterContainer.style.display = "block";
-    } else {
-      filterContainer.style.display = "none";
+    try {
+      const filterContainer = document.getElementById("filterContainer");
+      if (!filterContainer) {
+        Utilities.logError("Elemento 'filterContainer' não encontrado", null);
+        return;
+      }
+
+      if (filterContainer.style.display === "none") {
+        filterContainer.style.display = "block";
+      } else {
+        filterContainer.style.display = "none";
+      }
+    } catch (error) {
+      Utilities.logError("Erro ao alternar painel de filtros", error);
     }
   }
 
@@ -57,17 +70,31 @@ const FiltersModule = (function () {
    * Manipula a alteração do tipo de filtro de hora
    */
   function handleTimeFilterTypeChange() {
-    const customTimeContainer = document.getElementById("customTimeContainer");
-    const customTimeEndContainer = document.getElementById(
-      "customTimeEndContainer"
-    );
+    try {
+      const customTimeContainer = document.getElementById(
+        "customTimeContainer"
+      );
+      const customTimeEndContainer = document.getElementById(
+        "customTimeEndContainer"
+      );
 
-    if (this.value === "custom") {
-      customTimeContainer.style.display = "block";
-      customTimeEndContainer.style.display = "block";
-    } else {
-      customTimeContainer.style.display = "none";
-      customTimeEndContainer.style.display = "none";
+      if (!customTimeContainer || !customTimeEndContainer) {
+        Utilities.logError(
+          "Elementos de container de tempo personalizado não encontrados",
+          null
+        );
+        return;
+      }
+
+      if (this.value === "custom") {
+        customTimeContainer.style.display = "block";
+        customTimeEndContainer.style.display = "block";
+      } else {
+        customTimeContainer.style.display = "none";
+        customTimeEndContainer.style.display = "none";
+      }
+    } catch (error) {
+      Utilities.logError("Erro ao alterar tipo de filtro de hora", error);
     }
   }
 
@@ -80,11 +107,32 @@ const FiltersModule = (function () {
     try {
       Utilities.log("Aplicando filtros...");
 
-      const dateStart = document.getElementById("dateFilterStart").value;
-      const dateEnd = document.getElementById("dateFilterEnd").value;
-      const timeFilterType = document.getElementById("timeFilterType").value;
-      const timeStart = document.getElementById("timeFilterStart").value;
-      const timeEnd = document.getElementById("timeFilterEnd").value;
+      const dateStartEl = document.getElementById("dateFilterStart");
+      const dateEndEl = document.getElementById("dateFilterEnd");
+      const timeFilterTypeEl = document.getElementById("timeFilterType");
+      const timeStartEl = document.getElementById("timeFilterStart");
+      const timeEndEl = document.getElementById("timeFilterEnd");
+
+      // Verificar se os elementos existem
+      if (
+        !dateStartEl ||
+        !dateEndEl ||
+        !timeFilterTypeEl ||
+        !timeStartEl ||
+        !timeEndEl
+      ) {
+        Utilities.logError("Elementos de filtro não encontrados", null);
+        return {
+          filteredSightings: sightings,
+          activeFilters: false,
+        };
+      }
+
+      const dateStart = dateStartEl.value;
+      const dateEnd = dateEndEl.value;
+      const timeFilterType = timeFilterTypeEl.value;
+      const timeStart = timeStartEl.value;
+      const timeEnd = timeEndEl.value;
 
       // Verificar se temos algum filtro para aplicar
       if (!dateStart && !dateEnd && timeFilterType === "all") {
@@ -213,27 +261,64 @@ const FiltersModule = (function () {
    * @returns {Object} Objeto com avistamentos originais e estado dos filtros
    */
   function clearFilters(sightings) {
-    // Limpar campos do formulário
-    document.getElementById("dateFilterStart").value = "";
-    document.getElementById("dateFilterEnd").value = "";
-    document.getElementById("timeFilterType").value = "all";
-    document.getElementById("timeFilterStart").value = "";
-    document.getElementById("timeFilterEnd").value = "";
-    document.getElementById("customTimeContainer").style.display = "none";
-    document.getElementById("customTimeEndContainer").style.display = "none";
+    try {
+      const dateStartEl = document.getElementById("dateFilterStart");
+      const dateEndEl = document.getElementById("dateFilterEnd");
+      const timeFilterTypeEl = document.getElementById("timeFilterType");
+      const timeStartEl = document.getElementById("timeFilterStart");
+      const timeEndEl = document.getElementById("timeFilterEnd");
+      const customTimeContainer = document.getElementById(
+        "customTimeContainer"
+      );
+      const customTimeEndContainer = document.getElementById(
+        "customTimeEndContainer"
+      );
+      const filteredCountBadge = document.getElementById("filteredCountBadge");
 
-    // Esconder badge de contagem
-    document.getElementById("filteredCountBadge").style.display = "none";
+      // Verificar se os elementos existem
+      if (
+        !dateStartEl ||
+        !dateEndEl ||
+        !timeFilterTypeEl ||
+        !timeStartEl ||
+        !timeEndEl
+      ) {
+        Utilities.logError("Elementos de filtro não encontrados", null);
+        return {
+          filteredSightings: sightings,
+          activeFilters: false,
+        };
+      }
 
-    Utilities.showAlert(
-      "Filtros removidos, mostrando todos os avistamentos",
-      "info"
-    );
+      // Limpar campos do formulário
+      dateStartEl.value = "";
+      dateEndEl.value = "";
+      timeFilterTypeEl.value = "all";
+      timeStartEl.value = "";
+      timeEndEl.value = "";
 
-    return {
-      filteredSightings: sightings,
-      activeFilters: false,
-    };
+      if (customTimeContainer) customTimeContainer.style.display = "none";
+      if (customTimeEndContainer) customTimeEndContainer.style.display = "none";
+
+      // Esconder badge de contagem
+      if (filteredCountBadge) filteredCountBadge.style.display = "none";
+
+      Utilities.showAlert(
+        "Filtros removidos, mostrando todos os avistamentos",
+        "info"
+      );
+
+      return {
+        filteredSightings: sightings,
+        activeFilters: false,
+      };
+    } catch (error) {
+      Utilities.logError("Erro ao limpar filtros", error);
+      return {
+        filteredSightings: sightings,
+        activeFilters: false,
+      };
+    }
   }
 
   /**
@@ -242,9 +327,21 @@ const FiltersModule = (function () {
    * @param {number} totalCount - Quantidade total de itens
    */
   function updateFilteredCountBadge(filteredCount, totalCount) {
-    const filteredCountBadge = document.getElementById("filteredCountBadge");
-    filteredCountBadge.textContent = `${filteredCount} de ${totalCount}`;
-    filteredCountBadge.style.display = "inline-block";
+    try {
+      const filteredCountBadge = document.getElementById("filteredCountBadge");
+      if (!filteredCountBadge) {
+        Utilities.logError(
+          "Elemento 'filteredCountBadge' não encontrado",
+          null
+        );
+        return;
+      }
+
+      filteredCountBadge.textContent = `${filteredCount} de ${totalCount}`;
+      filteredCountBadge.style.display = "inline-block";
+    } catch (error) {
+      Utilities.logError("Erro ao atualizar badge de contagem", error);
+    }
   }
 
   /**
@@ -256,108 +353,145 @@ const FiltersModule = (function () {
     // Se não há filtros ativos, retorna true
     if (!activeFilters) return true;
 
-    const dateFilterStart = document.getElementById("dateFilterStart").value;
-    const dateFilterEnd = document.getElementById("dateFilterEnd").value;
-    const timeFilterType = document.getElementById("timeFilterType").value;
+    try {
+      const dateFilterStartEl = document.getElementById("dateFilterStart");
+      const dateFilterEndEl = document.getElementById("dateFilterEnd");
+      const timeFilterTypeEl = document.getElementById("timeFilterType");
+      const timeStartEl = document.getElementById("timeFilterStart");
+      const timeEndEl = document.getElementById("timeFilterEnd");
 
-    // Se não há filtros definidos, retorna true
-    if (!dateFilterStart && !dateFilterEnd && timeFilterType === "all") {
-      return true;
-    }
-
-    const sightingDate = new Date(sighting.dateTime);
-    let passesFilter = true;
-
-    // Verificar data
-    if (dateFilterStart || dateFilterEnd) {
-      if (dateFilterStart) {
-        const startDate = new Date(dateFilterStart);
-        if (sightingDate < startDate) passesFilter = false;
+      // Verificar se os elementos existem
+      if (
+        !dateFilterStartEl ||
+        !dateFilterEndEl ||
+        !timeFilterTypeEl ||
+        !timeStartEl ||
+        !timeEndEl
+      ) {
+        Utilities.logError("Elementos de filtro não encontrados", null);
+        return true;
       }
 
-      if (dateFilterEnd && passesFilter) {
-        const endDate = new Date(dateFilterEnd);
-        endDate.setHours(23, 59, 59, 999);
-        if (sightingDate > endDate) passesFilter = false;
+      const dateFilterStart = dateFilterStartEl.value;
+      const dateFilterEnd = dateFilterEndEl.value;
+      const timeFilterType = timeFilterTypeEl.value;
+
+      // Se não há filtros definidos, retorna true
+      if (!dateFilterStart && !dateFilterEnd && timeFilterType === "all") {
+        return true;
       }
-    }
 
-    // Verificar hora
-    if (passesFilter && timeFilterType !== "all") {
-      const hour = sightingDate.getHours();
-      const minute = sightingDate.getMinutes();
+      const sightingDate = new Date(sighting.dateTime);
+      let passesFilter = true;
 
-      if (timeFilterType === "morning") {
-        if (
-          hour < timeFilters.MORNING.startHour ||
-          hour > timeFilters.MORNING.endHour ||
-          (hour === timeFilters.MORNING.endHour &&
-            minute > timeFilters.MORNING.endMinute)
-        ) {
-          passesFilter = false;
+      // Verificar data
+      if (dateFilterStart || dateFilterEnd) {
+        if (dateFilterStart) {
+          const startDate = new Date(dateFilterStart);
+          if (sightingDate < startDate) passesFilter = false;
         }
-      } else if (timeFilterType === "afternoon") {
-        if (
-          hour < timeFilters.AFTERNOON.startHour ||
-          hour > timeFilters.AFTERNOON.endHour ||
-          (hour === timeFilters.AFTERNOON.endHour &&
-            minute > timeFilters.AFTERNOON.endMinute)
-        ) {
-          passesFilter = false;
+
+        if (dateFilterEnd && passesFilter) {
+          const endDate = new Date(dateFilterEnd);
+          endDate.setHours(23, 59, 59, 999);
+          if (sightingDate > endDate) passesFilter = false;
         }
-      } else if (timeFilterType === "evening") {
-        if (
-          hour < timeFilters.EVENING.startHour ||
-          hour > timeFilters.EVENING.endHour ||
-          (hour === timeFilters.EVENING.endHour &&
-            minute > timeFilters.EVENING.endMinute)
-        ) {
-          passesFilter = false;
-        }
-      } else if (timeFilterType === "night") {
-        // Noite cruza a meia-noite
-        if (
-          (hour >= timeFilters.NIGHT.startHour ||
-            hour <= timeFilters.NIGHT.endHour) &&
-          hour === timeFilters.NIGHT.endHour &&
-          minute > timeFilters.NIGHT.endMinute
-        ) {
-          passesFilter = false;
-        }
-      } else if (timeFilterType === "custom") {
-        const timeStart = document.getElementById("timeFilterStart").value;
-        const timeEnd = document.getElementById("timeFilterEnd").value;
+      }
 
-        if (timeStart && timeEnd) {
-          const startParts = timeStart.split(":");
-          const endParts = timeEnd.split(":");
+      // Verificar hora
+      if (passesFilter && timeFilterType !== "all") {
+        const hour = sightingDate.getHours();
+        const minute = sightingDate.getMinutes();
 
-          const startHour = parseInt(startParts[0]);
-          const startMinute = parseInt(startParts[1]);
-          const endHour = parseInt(endParts[0]);
-          const endMinute = parseInt(endParts[1]);
-
-          const timeValue = hour * 60 + minute;
-          const startValue = startHour * 60 + startMinute;
-          const endValue = endHour * 60 + endMinute;
-
-          // Verificar se cruza a meia-noite
-          const crossesMidnight =
-            endHour < startHour ||
-            (endHour === startHour && endMinute < startMinute);
-
-          if (crossesMidnight) {
-            if (!(timeValue >= startValue || timeValue <= endValue)) {
+        if (timeFilterType === "morning") {
+          if (
+            hour < timeFilters.MORNING.startHour ||
+            hour > timeFilters.MORNING.endHour ||
+            (hour === timeFilters.MORNING.endHour &&
+              minute > timeFilters.MORNING.endMinute)
+          ) {
+            passesFilter = false;
+          }
+        } else if (timeFilterType === "afternoon") {
+          if (
+            hour < timeFilters.AFTERNOON.startHour ||
+            hour > timeFilters.AFTERNOON.endHour ||
+            (hour === timeFilters.AFTERNOON.endHour &&
+              minute > timeFilters.AFTERNOON.endMinute)
+          ) {
+            passesFilter = false;
+          }
+        } else if (timeFilterType === "evening") {
+          if (
+            hour < timeFilters.EVENING.startHour ||
+            hour > timeFilters.EVENING.endHour ||
+            (hour === timeFilters.EVENING.endHour &&
+              minute > timeFilters.EVENING.endMinute)
+          ) {
+            passesFilter = false;
+          }
+        } else if (timeFilterType === "night") {
+          // Noite cruza a meia-noite
+          if (timeFilters.NIGHT.crossesMidnight) {
+            if (
+              hour > timeFilters.NIGHT.endHour &&
+              hour < timeFilters.NIGHT.startHour
+            ) {
+              passesFilter = false;
+            } else if (
+              hour === timeFilters.NIGHT.endHour &&
+              minute > timeFilters.NIGHT.endMinute
+            ) {
               passesFilter = false;
             }
-          } else if (timeValue < startValue || timeValue > endValue) {
-            passesFilter = false;
+          } else {
+            if (
+              hour < timeFilters.NIGHT.startHour ||
+              hour > timeFilters.NIGHT.endHour ||
+              (hour === timeFilters.NIGHT.endHour &&
+                minute > timeFilters.NIGHT.endMinute)
+            ) {
+              passesFilter = false;
+            }
+          }
+        } else if (timeFilterType === "custom") {
+          const timeStart = timeStartEl.value;
+          const timeEnd = timeEndEl.value;
+
+          if (timeStart && timeEnd) {
+            const startParts = timeStart.split(":");
+            const endParts = timeEnd.split(":");
+
+            const startHour = parseInt(startParts[0]);
+            const startMinute = parseInt(startParts[1]);
+            const endHour = parseInt(endParts[0]);
+            const endMinute = parseInt(endParts[1]);
+
+            const timeValue = hour * 60 + minute;
+            const startValue = startHour * 60 + startMinute;
+            const endValue = endHour * 60 + endMinute;
+
+            // Verificar se cruza a meia-noite
+            const crossesMidnight =
+              endHour < startHour ||
+              (endHour === startHour && endMinute < startMinute);
+
+            if (crossesMidnight) {
+              if (!(timeValue >= startValue || timeValue <= endValue)) {
+                passesFilter = false;
+              }
+            } else if (timeValue < startValue || timeValue > endValue) {
+              passesFilter = false;
+            }
           }
         }
       }
-    }
 
-    return passesFilter;
+      return passesFilter;
+    } catch (error) {
+      Utilities.logError("Erro ao verificar filtros", error);
+      return true; // Em caso de erro, mostrar o avistamento (não filtrar)
+    }
   }
 
   /**

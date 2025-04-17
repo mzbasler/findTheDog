@@ -66,6 +66,13 @@ const App = (function () {
     if (!ImportModule.init()) {
       Utilities.logError("Falha ao inicializar o módulo de importação", null);
     }
+
+    // Inicializar o módulo KML se estiver disponível
+    if (typeof KmlModule !== "undefined") {
+      if (!KmlModule.init()) {
+        Utilities.logError("Falha ao inicializar o módulo KML", null);
+      }
+    }
   }
 
   /**
@@ -119,6 +126,21 @@ const App = (function () {
         updateVisualizations();
       });
 
+    // Botão de importação KML
+    const importKmlBtn = document.getElementById("importKmlBtn");
+    if (importKmlBtn) {
+      importKmlBtn.addEventListener("click", function () {
+        if (MapModule && MapModule.importKmlFile) {
+          MapModule.importKmlFile();
+        } else {
+          Utilities.showAlert(
+            "A funcionalidade de importação KML não está disponível.",
+            "warning"
+          );
+        }
+      });
+    }
+
     // Para dispositivos móveis, atualizar o mapa quando a orientação muda
     window.addEventListener("resize", function () {
       setTimeout(() => updateVisualizations(), 500);
@@ -146,23 +168,43 @@ const App = (function () {
    * Atualiza todas as visualizações (mapa e linha do tempo)
    */
   function updateVisualizations() {
+    // Debug para rastrear falhas
+    Utilities.log("Atualizando visualizações...", {
+      sightingsLength: sightings.length,
+      filteredLength: filteredSightings.length,
+    });
+
     // Atualizar o mapa
-    MapModule.updateMap(sightings, filteredSightings, activeFilters);
+    if (MapModule) {
+      MapModule.updateMap(sightings, filteredSightings, activeFilters);
+    } else {
+      Utilities.logError("MapModule não está disponível", null);
+    }
 
     // Atualizar a linha do tempo
-    TimelineModule.updateTimeline(
-      sightings,
-      filteredSightings,
-      activeFilters,
-      handleTimelineItemClick,
-      handleDeleteSighting
-    );
+    if (TimelineModule) {
+      TimelineModule.updateTimeline(
+        sightings,
+        filteredSightings,
+        activeFilters,
+        handleTimelineItemClick,
+        handleDeleteSighting
+      );
+    } else {
+      Utilities.logError("TimelineModule não está disponível", null);
+    }
 
     // Atualizar estatísticas
-    TimelineModule.updateStats(sightings, filteredSightings);
+    if (TimelineModule) {
+      TimelineModule.updateStats(sightings, filteredSightings);
+    }
 
     // Atualizar estado dos filtros
-    FiltersModule.setActiveFilters(activeFilters);
+    if (FiltersModule) {
+      FiltersModule.setActiveFilters(activeFilters);
+    } else {
+      Utilities.logError("FiltersModule não está disponível", null);
+    }
   }
 
   /**
@@ -254,6 +296,19 @@ const App = (function () {
       document.getElementById("sightingForm").reset();
       MapModule.removeTemporaryMarker();
 
+      // Fechar o sidebar
+      try {
+        const formSidebar = document.getElementById("formSidebar");
+        if (formSidebar) {
+          const offcanvas = bootstrap.Offcanvas.getInstance(formSidebar);
+          if (offcanvas) {
+            offcanvas.hide();
+          }
+        }
+      } catch (error) {
+        Utilities.logError("Erro ao fechar sidebar", error);
+      }
+
       if (activeFilters && !passesFilter) {
         Utilities.showAlert(
           "Avistamento adicionado com sucesso, mas está fora dos filtros atuais!",
@@ -319,7 +374,9 @@ const App = (function () {
    * @param {Object} sighting - Avistamento clicado
    */
   function handleTimelineItemClick(sighting) {
-    MapModule.centerMap(sighting.lat, sighting.lng);
+    if (MapModule) {
+      MapModule.centerMap(sighting.lat, sighting.lng);
+    }
   }
 
   /**
@@ -363,6 +420,11 @@ const App = (function () {
       // Resetar filtros
       const result = FiltersModule.clearFilters([]);
       activeFilters = result.activeFilters;
+
+      // Limpar camadas KML se o módulo estiver disponível
+      if (typeof KmlModule !== "undefined" && KmlModule.clearAllKmlLayers) {
+        KmlModule.clearAllKmlLayers();
+      }
 
       // Atualizar visualizações
       updateVisualizations();

@@ -23,6 +23,15 @@ const CONFIG = {
     MARKER_INACTIVE_COLOR: "#aaaaaa",
     MARKER_SIZE: 25,
     MARKER_BORDER: "2px solid white",
+    // Configurações para KML
+    KML: {
+      LINE_COLOR: "#FF7800",
+      LINE_WEIGHT: 3,
+      LINE_OPACITY: 0.7,
+      POLYGON_COLOR: "#FF0000",
+      POLYGON_OPACITY: 0.2,
+      POINT_COLOR: "#3388ff",
+    },
   },
 
   // Configurações de filtros de tempo
@@ -79,6 +88,19 @@ const CONFIG = {
       HHMM: /^\d{2}:\d{2}$/, // 09:00
     },
     COORDS_PATTERN: /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/, // -30.0271, -51.1940
+  },
+
+  // Configurações para arquivos KML
+  KML_PROCESSING: {
+    MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
+    AUTO_FIT_BOUNDS: true,
+    STYLE: {
+      STROKE_COLOR: "#3388ff",
+      STROKE_WIDTH: 3,
+      STROKE_OPACITY: 0.7,
+      FILL_COLOR: "#3388ff",
+      FILL_OPACITY: 0.2,
+    },
   },
 
   // Atrasos para inicialização e atualizações (ms)

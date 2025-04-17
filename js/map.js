@@ -1,191 +1,454 @@
 /**
- * Utilitários para o aplicativo PetRadar
+ * Gerenciamento do mapa e visualização de pontos
  */
+const MapModule = (function () {
+  // Variáveis privadas
+  let map = null;
+  let markers = [];
+  let polyline = null;
+  let buffer = null;
+  let temporaryMarker = null;
 
-// Objeto global para armazenar funções utilitárias
-const Utilities = {
   /**
-   * Mostra um alerta temporário
-   * @param {string} message - Mensagem a ser exibida
-   * @param {string} type - Tipo de alerta (success, info, warning, danger)
+   * Inicializa o mapa e configura os eventos iniciais
+   * @returns {boolean} true se a inicialização foi bem sucedida, false caso contrário
    */
-  showAlert: function (message, type) {
+  function init() {
     try {
-      // Criar o elemento de alerta
-      const alertDiv = document.createElement("div");
-      alertDiv.classList.add(
-        "alert",
-        `alert-${type}`,
-        "alert-dismissible",
-        "fade",
-        "show",
-        "position-fixed"
+      Utilities.log("Inicializando mapa...");
+
+      // Verificar se o elemento do mapa existe
+      const mapElement = document.getElementById("map");
+      if (!mapElement) {
+        Utilities.logError("Elemento 'map' não encontrado", null);
+        return false;
+      }
+
+      // Inicializar o mapa com o centro padrão
+      map = L.map("map").setView(
+        CONFIG.MAP.DEFAULT_CENTER,
+        CONFIG.MAP.DEFAULT_ZOOM
       );
-      alertDiv.style.top = "20px";
-      alertDiv.style.right = "20px";
-      alertDiv.style.zIndex = "9999";
 
-      // Adicionar conteúdo
-      alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      `;
+      // Adicionar camada de tiles
+      L.tileLayer(CONFIG.MAP.TILE_LAYER, {
+        attribution: CONFIG.MAP.ATTRIBUTION,
+        maxZoom: CONFIG.MAP.MAX_ZOOM,
+      }).addTo(map);
 
-      // Adicionar ao corpo do documento
-      document.body.appendChild(alertDiv);
+      // Configurar eventos do mapa
+      map.on("click", handleMapClick);
 
-      // Remover o alerta após o tempo definido
-      setTimeout(() => {
-        alertDiv.classList.remove("show");
-        setTimeout(() => alertDiv.remove(), 150);
-      }, CONFIG.ALERT_DURATION);
+      // Adicionar controles básicos de zoom
+      L.control
+        .zoom({
+          position: "bottomright",
+        })
+        .addTo(map);
+
+      Utilities.log("Mapa inicializado com sucesso");
+      return true;
     } catch (error) {
-      console.error("Erro ao mostrar alerta:", error);
+      Utilities.logError("Erro ao inicializar mapa", error);
+      return false;
     }
-  },
+  }
 
   /**
-   * Calcula a distância entre dois pontos em km (fórmula de Haversine)
-   * @param {number} lat1 - Latitude do ponto 1
-   * @param {number} lon1 - Longitude do ponto 1
-   * @param {number} lat2 - Latitude do ponto 2
-   * @param {number} lon2 - Longitude do ponto 2
-   * @returns {number} Distância em quilômetros
+   * Retorna a instância do mapa Leaflet
+   * @returns {Object} Instância do mapa
    */
-  calculateDistance: function (lat1, lon1, lat2, lon2) {
-    const R = 6371; // Raio da Terra em km
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c; // Distância em km
-    return distance;
-  },
+  function getMap() {
+    return map;
+  }
 
   /**
-   * Formata uma data para exibição
-   * @param {Date|string} date - Objeto Date ou string ISO
-   * @returns {string} Data formatada
+   * Atualiza o mapa com base nos avistamentos
+   * @param {Array} allSightings - Array com todos os avistamentos
+   * @param {Array} filteredSightings - Array com avistamentos filtrados
+   * @param {boolean} activeFilters - Indica se os filtros estão ativos
    */
-  formatDate: function (date) {
-    if (typeof date === "string") {
-      date = new Date(date);
-    }
-
-    return (
-      date.toLocaleDateString(CONFIG.DATE_FORMAT.locale) +
-      " " +
-      date.toLocaleTimeString(CONFIG.DATE_FORMAT.locale)
-    );
-  },
-
-  /**
-   * Registra uma mensagem no console durante o desenvolvimento
-   * @param {string} message - Mensagem a ser registrada
-   * @param {*} data - Dados opcionais para exibir junto com a mensagem
-   */
-  log: function (message, data) {
-    if (data) {
-      console.log(`[PetRadar] ${message}:`, data);
-    } else {
-      console.log(`[PetRadar] ${message}`);
-    }
-  },
-
-  /**
-   * Registra um erro no console
-   * @param {string} message - Mensagem de erro
-   * @param {Error} error - Objeto de erro
-   */
-  logError: function (message, error) {
-    console.error(`[PetRadar] ERRO - ${message}:`, error);
-  },
-
-  /**
-   * Encontra um valor de coluna em um conjunto de cabeçalhos (case insensitive)
-   * @param {Array} headers - Array de cabeçalhos
-   * @param {Array} possibleNames - Array de possíveis nomes para a coluna
-   * @returns {string|null} O cabeçalho encontrado ou null
-   */
-  findColumn: function (headers, possibleNames) {
-    const lowerHeaders = headers.map((h) => String(h).toLowerCase());
-
-    for (const name of possibleNames) {
-      const index = lowerHeaders.findIndex((h) => h.includes(name));
-      if (index !== -1) {
-        return headers[index];
-      }
-    }
-
-    return null;
-  },
-
-  /**
-   * Salva os dados de avistamentos no armazenamento local
-   * @param {Array} sightings - Array de avistamentos
-   */
-  saveData: function (sightings) {
+  function updateMap(allSightings, filteredSightings, activeFilters) {
     try {
-      localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(sightings));
-      this.log(`${sightings.length} avistamentos salvos`);
-    } catch (error) {
-      this.logError("Erro ao salvar dados", error);
-      this.showAlert(
-        "Erro ao salvar dados. Seu navegador pode estar com pouco espaço disponível.",
-        "danger"
-      );
-    }
-  },
-
-  /**
-   * Carrega os dados de avistamentos do armazenamento local
-   * @returns {Array} Array de avistamentos ou array vazio se não houver dados
-   */
-  loadData: function () {
-    try {
-      const savedData = localStorage.getItem(CONFIG.STORAGE_KEY);
-      if (!savedData) {
-        return [];
+      // Verificar se o mapa foi inicializado
+      if (!map) {
+        Utilities.logError("Mapa não inicializado", null);
+        return;
       }
 
-      const parsed = JSON.parse(savedData);
-      if (!Array.isArray(parsed)) {
-        this.logError("Dados salvos não são um array válido", parsed);
-        return [];
+      // Limpar marcadores existentes
+      clearMap();
+
+      // Se não houver avistamentos, não há o que mostrar
+      if (allSightings.length === 0) {
+        return;
       }
 
-      // Validar cada item do array
-      const validSightings = [];
-      for (const item of parsed) {
-        if (
-          item &&
-          typeof item === "object" &&
-          item.hasOwnProperty("lat") &&
-          item.hasOwnProperty("lng") &&
-          item.hasOwnProperty("dateTime") &&
-          item.hasOwnProperty("id")
-        ) {
-          validSightings.push(item);
+      // Determinar quais avistamentos mostrar (todos ou filtrados)
+      const sightingsToShow = activeFilters ? filteredSightings : allSightings;
+
+      // Adicionar marcadores para cada avistamento
+      addMarkers(allSightings, filteredSightings, activeFilters);
+
+      // Desenhar a rota conectando os pontos (se houver mais de um)
+      if (filteredSightings.length > 1) {
+        drawRoute(filteredSightings);
+      }
+
+      // Adicionar buffer circular ao redor do último avistamento (se houver)
+      if (filteredSightings.length > 0) {
+        const lastSighting = filteredSightings[filteredSightings.length - 1];
+        addBuffer(lastSighting.lat, lastSighting.lng);
+
+        // Atualizar a informação do último avistamento na UI
+        const lastSightingElement = document.getElementById("lastSighting");
+        if (lastSightingElement) {
+          // Determinar a melhor data/hora para exibição
+          let displayDateTime;
+
+          if (lastSighting.formattedDateTime) {
+            displayDateTime = lastSighting.formattedDateTime;
+          } else if (lastSighting.originalDate && lastSighting.originalTime) {
+            displayDateTime = `${lastSighting.originalDate} ${lastSighting.originalTime}`;
+          } else {
+            displayDateTime = Utilities.formatDate(lastSighting.dateTime);
+          }
+
+          lastSightingElement.textContent = displayDateTime;
         }
       }
 
-      return validSightings;
+      // Centralizar e ajustar zoom para mostrar todos os pontos
+      if (sightingsToShow.length > 0) {
+        fitMapToMarkers(sightingsToShow);
+      }
     } catch (error) {
-      this.logError("Erro ao carregar dados salvos", error);
-      return [];
+      Utilities.logError("Erro ao atualizar mapa", error);
     }
-  },
+  }
 
   /**
-   * Limpa os dados armazenados
+   * Adiciona marcadores para todos os avistamentos
+   * @param {Array} allSightings - Todos os avistamentos
+   * @param {Array} filteredSightings - Avistamentos filtrados
+   * @param {boolean} activeFilters - Indica se os filtros estão ativos
    */
-  clearData: function () {
-    localStorage.removeItem(CONFIG.STORAGE_KEY);
-    this.log("Dados limpos do armazenamento local");
-  },
-};
+  function addMarkers(allSightings, filteredSightings, activeFilters) {
+    // Limpar marcadores existentes
+    clearMarkers();
+
+    // Conjunto com IDs dos avistamentos filtrados para rápida verificação
+    const filteredIds = new Set(filteredSightings.map((s) => s.id));
+
+    // Adicionar marcadores para cada avistamento
+    allSightings.forEach((sighting, index) => {
+      // Verificar se o avistamento está no conjunto filtrado
+      const isFiltered = !filteredIds.has(sighting.id);
+
+      // Determinar a classe CSS com base no filtro
+      const markerClass = isFiltered && activeFilters ? "filtered-out" : "";
+
+      // Determinar a cor do marcador
+      const markerColor =
+        isFiltered && activeFilters
+          ? CONFIG.MAP.MARKER_INACTIVE_COLOR
+          : CONFIG.MAP.MARKER_ACTIVE_COLOR;
+
+      // Criar ícone personalizado do marcador
+      const icon = L.divIcon({
+        className: `custom-marker ${markerClass}`,
+        html: `<div style="background-color: ${markerColor}; width: ${
+          CONFIG.MAP.MARKER_SIZE
+        }px; height: ${CONFIG.MAP.MARKER_SIZE}px; border-radius: 50%; border: ${
+          CONFIG.MAP.MARKER_BORDER
+        }; display: flex; justify-content: center; align-items: center; color: white; font-weight: bold;">${
+          index + 1
+        }</div>`,
+        iconSize: [CONFIG.MAP.MARKER_SIZE, CONFIG.MAP.MARKER_SIZE],
+        iconAnchor: [CONFIG.MAP.MARKER_SIZE / 2, CONFIG.MAP.MARKER_SIZE / 2],
+      });
+
+      // Criar o marcador e adicionar ao mapa
+      const marker = L.marker([sighting.lat, sighting.lng], { icon: icon });
+
+      // Adicionar popup com informações
+      marker.bindPopup(createPopupContent(sighting, index + 1));
+
+      // Adicionar o marcador ao mapa e ao array
+      marker.addTo(map);
+      markers.push(marker);
+    });
+  }
+
+  /**
+   * Cria o conteúdo do popup para um avistamento
+   * @param {Object} sighting - Objeto do avistamento
+   * @param {number} index - Número do avistamento
+   * @returns {string} HTML do popup
+   */
+  function createPopupContent(sighting, index) {
+    // Definir a data e hora para exibição, priorizando valores originais
+    let displayDateTime;
+
+    if (sighting.formattedDateTime) {
+      // Se temos um formato já pronto, usar ele
+      displayDateTime = sighting.formattedDateTime;
+    } else if (sighting.originalDate && sighting.originalTime) {
+      // Se temos os valores originais separados
+      displayDateTime = `${sighting.originalDate} ${sighting.originalTime}`;
+    } else {
+      // Último caso: formatar a partir do dateTime ISO
+      displayDateTime = Utilities.formatDate(sighting.dateTime);
+    }
+
+    const notes = sighting.notes
+      ? `<p><strong>Observações:</strong> ${sighting.notes}</p>`
+      : "";
+
+    return `
+      <div class="popup-content">
+        <h6>Avistamento #${index}</h6>
+        <p><strong>Data e Hora:</strong> ${displayDateTime}</p>
+        <p><strong>Coordenadas:</strong> ${sighting.lat.toFixed(
+          5
+        )}, ${sighting.lng.toFixed(5)}</p>
+        ${notes}
+      </div>
+    `;
+  }
+
+  /**
+   * Desenha a rota entre os pontos de avistamento
+   * @param {Array} sightings - Array de avistamentos
+   */
+  function drawRoute(sightings) {
+    // Verificar se o mapa foi inicializado
+    if (!map) {
+      Utilities.logError("Mapa não inicializado", null);
+      return;
+    }
+
+    // Remover polyline existente, se houver
+    if (polyline) {
+      map.removeLayer(polyline);
+    }
+
+    // Preparar os pontos para a polyline
+    const points = sightings.map((sighting) => [sighting.lat, sighting.lng]);
+
+    // Criar e adicionar a polyline
+    polyline = L.polyline(points, {
+      color: CONFIG.MAP.ROUTE_COLOR,
+      weight: CONFIG.MAP.ROUTE_WEIGHT,
+      opacity: 0.8,
+      smoothFactor: 1,
+    }).addTo(map);
+  }
+
+  /**
+   * Adiciona um buffer circular ao redor de um ponto
+   * @param {number} lat - Latitude do centro
+   * @param {number} lng - Longitude do centro
+   */
+  function addBuffer(lat, lng) {
+    // Verificar se o mapa foi inicializado
+    if (!map) {
+      Utilities.logError("Mapa não inicializado", null);
+      return;
+    }
+
+    // Remover buffer existente, se houver
+    if (buffer) {
+      map.removeLayer(buffer);
+    }
+
+    // Criar e adicionar o buffer
+    buffer = L.circle([lat, lng], {
+      radius: CONFIG.MAP.BUFFER_RADIUS,
+      color: CONFIG.MAP.BUFFER_COLOR,
+      fillColor: CONFIG.MAP.BUFFER_FILL_COLOR,
+      fillOpacity: CONFIG.MAP.BUFFER_FILL_OPACITY,
+    }).addTo(map);
+
+    // Atualizar a área do buffer na UI (em km²)
+    const area = Math.PI * Math.pow(CONFIG.MAP.BUFFER_RADIUS / 1000, 2);
+
+    const bufferAreaElement = document.getElementById("bufferArea");
+    if (bufferAreaElement) {
+      bufferAreaElement.textContent = area.toFixed(2);
+    }
+  }
+
+  /**
+   * Ajusta o zoom do mapa para mostrar todos os marcadores
+   * @param {Array} sightings - Array de avistamentos a serem exibidos
+   */
+  function fitMapToMarkers(sightings) {
+    // Verificar se o mapa foi inicializado
+    if (!map) {
+      Utilities.logError("Mapa não inicializado", null);
+      return;
+    }
+
+    if (sightings.length === 0) return;
+
+    // Se tivermos apenas um ponto, centralizar nele
+    if (sightings.length === 1) {
+      map.setView([sightings[0].lat, sightings[0].lng], 15);
+      return;
+    }
+
+    // Criar bounds para conter todos os pontos
+    const bounds = L.latLngBounds(sightings.map((s) => [s.lat, s.lng]));
+
+    // Ajustar o mapa para mostrar todos os pontos
+    map.fitBounds(bounds, { padding: [50, 50] });
+  }
+
+  /**
+   * Manipula o clique no mapa
+   * @param {Object} e - Evento de clique
+   */
+  function handleMapClick(e) {
+    try {
+      const latlng = e.latlng;
+
+      // Remover marcador temporário existente
+      removeTemporaryMarker();
+
+      // Criar novo marcador temporário
+      temporaryMarker = L.marker(latlng).addTo(map);
+
+      // Preencher o campo de localização no formulário
+      const locationField = document.getElementById("location");
+      if (locationField) {
+        locationField.value = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(
+          6
+        )}`;
+      }
+
+      // Abrir o menu lateral de formulário se não estiver aberto
+      const formSidebar = document.getElementById("formSidebar");
+      if (formSidebar) {
+        try {
+          const offcanvas = new bootstrap.Offcanvas(formSidebar);
+          offcanvas.show();
+        } catch (error) {
+          Utilities.logError("Erro ao abrir menu lateral", error);
+          // Alternativa: tentar abrir o menu de outra forma
+          formSidebar.classList.add("show");
+        }
+      }
+    } catch (error) {
+      Utilities.logError("Erro ao processar clique no mapa", error);
+    }
+  }
+
+  /**
+   * Remove o marcador temporário do mapa
+   */
+  function removeTemporaryMarker() {
+    if (temporaryMarker && map) {
+      map.removeLayer(temporaryMarker);
+      temporaryMarker = null;
+    }
+  }
+
+  /**
+   * Centraliza o mapa em um ponto específico
+   * @param {number} lat - Latitude
+   * @param {number} lng - Longitude
+   * @param {number} zoom - Nível de zoom (opcional)
+   */
+  function centerMap(lat, lng, zoom = 15) {
+    if (map) {
+      map.setView([lat, lng], zoom);
+    } else {
+      Utilities.logError("Mapa não inicializado", null);
+    }
+  }
+
+  /**
+   * Limpa todos os elementos do mapa
+   */
+  function clearMap() {
+    if (!map) {
+      Utilities.logError("Mapa não inicializado", null);
+      return;
+    }
+
+    clearMarkers();
+
+    if (polyline) {
+      map.removeLayer(polyline);
+      polyline = null;
+    }
+
+    if (buffer) {
+      map.removeLayer(buffer);
+      buffer = null;
+    }
+  }
+
+  /**
+   * Limpa apenas os marcadores do mapa
+   */
+  function clearMarkers() {
+    if (!map) {
+      return;
+    }
+
+    markers.forEach((marker) => map.removeLayer(marker));
+    markers = [];
+  }
+
+  /**
+   * Calcula a distância total do percurso
+   * @param {Array} sightings - Array de avistamentos
+   * @returns {number} Distância total em km
+   */
+  function calculateTotalDistance(sightings) {
+    if (sightings.length <= 1) return 0;
+
+    let totalDistance = 0;
+
+    for (let i = 0; i < sightings.length - 1; i++) {
+      const current = sightings[i];
+      const next = sightings[i + 1];
+
+      totalDistance += Utilities.calculateDistance(
+        current.lat,
+        current.lng,
+        next.lat,
+        next.lng
+      );
+    }
+
+    return totalDistance;
+  }
+
+  /**
+   * Importa um arquivo KML para o mapa
+   */
+  function importKmlFile() {
+    if (typeof KmlModule !== "undefined" && KmlModule.importKml) {
+      KmlModule.importKml();
+    } else {
+      Utilities.showAlert(
+        "Módulo KML não está disponível. Certifique-se de que o arquivo 'kml-loader.js' foi carregado.",
+        "warning"
+      );
+    }
+  }
+
+  // Interface pública do módulo
+  return {
+    init: init,
+    updateMap: updateMap,
+    centerMap: centerMap,
+    removeTemporaryMarker: removeTemporaryMarker,
+    calculateTotalDistance: calculateTotalDistance,
+    getMap: getMap,
+    importKmlFile: importKmlFile,
+  };
+})();

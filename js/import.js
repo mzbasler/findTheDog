@@ -513,26 +513,26 @@ const ImportModule = (function () {
             ? String(row[notesColumn] || "").trim()
             : "";
 
-          // Processar data e hora para criar objeto Date
-          const dateObj = parseDateTime(dateValue, timeValue);
+          // Usar a função aprimorada para processar data/hora com preservação dos valores originais
+          const dateTimeResult = parseDateTime(dateValue, timeValue);
 
-          // Validar se a data é válida
-          if (isNaN(dateObj.getTime())) {
+          // Verificar se a data é válida
+          if (!dateTimeResult.isValid) {
             errorsCount++;
             return;
           }
 
-          // Converter para formato ISO para o input datetime-local
-          const isoDate = dateObj.toISOString().slice(0, 16);
-
-          // Criar objeto de avistamento
+          // Criar objeto de avistamento com valores originais e processados
           const newSighting = {
             id: Date.now() + index, // ID único
-            dateTime: isoDate,
+            dateTime: dateTimeResult.isoDate, // Para input datetime-local
+            originalDate: dateTimeResult.originalDate, // Preservar valor original
+            originalTime: dateTimeResult.originalTime, // Preservar valor original
+            formattedDateTime: dateTimeResult.formattedDate, // Para exibição formatada
             lat: latValue,
             lng: lngValue,
             notes: notesValue || "",
-            timestamp: dateObj.getTime(),
+            timestamp: dateTimeResult.dateObj.getTime(),
           };
 
           importedSightings.push(newSighting);
@@ -643,169 +643,148 @@ const ImportModule = (function () {
   }
 
   /**
-   * Analisa strings de data e hora para criar um objeto Date
-   * @param {string} dateStr - String contendo a data
-   * @param {string} timeStr - String contendo a hora
-   * @returns {Date} Objeto Date criado com os valores
+   * Analisa strings de data e hora para criar um objeto Date preservando o formato original
+   * @param {string} dateValue - String contendo a data
+   * @param {string} timeValue - String contendo a hora
+   * @returns {Object} Objeto com a data parseada e as strings originais
    */
   function parseDateTime(dateValue, timeValue) {
-    // Garantir que dateValue e timeValue sejam strings
-    const dateStr = String(dateValue).trim();
-    const timeStr = String(timeValue).trim();
+    try {
+      // Garantir que dateValue e timeValue sejam strings
+      const dateStr = String(dateValue).trim();
+      const timeStr = String(timeValue).trim();
 
-    let dateObj;
+      // Armazenar as strings originais
+      const originalDate = dateStr;
+      const originalTime = timeStr;
 
-    // Processar data no formato DD/MM/YYYY ou qualquer formato DD/MM/YY
-    if (
-      fileConfig.DATE_PATTERNS[0].test(dateStr) ||
-      fileConfig.DATE_PATTERNS[1].test(dateStr)
-    ) {
-      const parts = dateStr.split("/");
-      let year = parseInt(parts[2]);
+      let dateObj = null;
+      let isValidDate = false;
 
-      // Ajustar ano se for formato de 2 dígitos (assumindo século 21)
-      if (year < 100) {
-        year += year < 50 ? 2000 : 1900;
-      }
+      // Verificar formatos de data suportados
+      if (fileConfig.DATE_PATTERNS[0].test(dateStr)) {
+        // DD/MM/YYYY
+        const parts = dateStr.split("/");
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // Mês em JS é 0-11
+        const year = parseInt(parts[2], 10);
 
-      const month = parseInt(parts[1]) - 1; // Mês em JS é 0-11
-      const day = parseInt(parts[0]);
+        // Construir a data mantendo a hora como 00:00
+        dateObj = new Date(year, month, day, 0, 0, 0);
+        isValidDate = !isNaN(dateObj.getTime());
+      } else if (fileConfig.DATE_PATTERNS[1].test(dateStr)) {
+        // DD/MM/YY
+        const parts = dateStr.split("/");
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        let year = parseInt(parts[2], 10);
 
-      // Processar hora (pode estar em diversos formatos)
-      let hours = 0,
-        minutes = 0;
-
-      if (
-        timeStr.toLowerCase() === "manhã" ||
-        timeStr.toLowerCase() === "manha"
-      ) {
-        hours = 8; // Assumir 8h para "manhã"
-      } else if (fileConfig.TIME_PATTERNS.HHhMM.test(timeStr)) {
-        // Formato HHhMM ou HhMM (ex: 09h00 ou 9h00)
-        const timeParts = timeStr.split("h");
-        hours = parseInt(timeParts[0]);
-        minutes = parseInt(timeParts[1]);
-      } else if (fileConfig.TIME_PATTERNS.HHMM.test(timeStr)) {
-        // Formato HH:MM
-        const timeParts = timeStr.split(":");
-        hours = parseInt(timeParts[0]);
-        minutes = parseInt(timeParts[1]);
-      } else if (fileConfig.TIME_PATTERNS.HHh.test(timeStr)) {
-        // Formato HHh ou Hh (ex: 09h ou 9h)
-        hours = parseInt(timeStr.replace("h", ""));
-      } else {
-        // Tentar outros formatos
-        try {
-          const tempTime = new Date(`2000-01-01T${timeStr}`);
-          if (!isNaN(tempTime.getTime())) {
-            hours = tempTime.getHours();
-            minutes = tempTime.getMinutes();
-          } else {
-            // Último recurso: tentar extrair números do início da string
-            const timeMatch = timeStr.match(/^(\d{1,2})[^\d]*(\d{1,2})?/);
-            if (timeMatch) {
-              hours = parseInt(timeMatch[1]);
-              minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-            } else {
-              hours = 12; // Default se não conseguir extrair
-            }
-          }
-        } catch (e) {
-          hours = 12; // Default para erro
+        // Assumir século apropriado (20 ou 21)
+        if (year < 100) {
+          year += year < 50 ? 2000 : 1900;
         }
-      }
 
-      // Criar objeto de data
-      dateObj = new Date(year, month, day, hours, minutes);
-    } else if (
-      fileConfig.DATE_PATTERNS[2].test(dateStr) ||
-      fileConfig.DATE_PATTERNS[3].test(dateStr)
-    ) {
-      // Processar data em formato YYYY-MM-DD ou DD-MM-YYYY
-      let year, month, day;
-
-      if (fileConfig.DATE_PATTERNS[2].test(dateStr)) {
+        dateObj = new Date(year, month, day, 0, 0, 0);
+        isValidDate = !isNaN(dateObj.getTime());
+      } else if (fileConfig.DATE_PATTERNS[2].test(dateStr)) {
         // DD-MM-YYYY
         const parts = dateStr.split("-");
-        day = parseInt(parts[0]);
-        month = parseInt(parts[1]) - 1;
-        year = parseInt(parts[2]);
-      } else {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+
+        dateObj = new Date(year, month, day, 0, 0, 0);
+        isValidDate = !isNaN(dateObj.getTime());
+      } else if (fileConfig.DATE_PATTERNS[3].test(dateStr)) {
         // YYYY-MM-DD
         const parts = dateStr.split("-");
-        year = parseInt(parts[0]);
-        month = parseInt(parts[1]) - 1;
-        day = parseInt(parts[2]);
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+
+        dateObj = new Date(year, month, day, 0, 0, 0);
+        isValidDate = !isNaN(dateObj.getTime());
+      } else {
+        // Tentar parse padrão como último recurso
+        dateObj = new Date(dateStr);
+        isValidDate = !isNaN(dateObj.getTime());
       }
 
-      // Processar hora
+      // Processar hora de forma precisa
       let hours = 0,
         minutes = 0;
 
-      if (
-        timeStr.toLowerCase() === "manhã" ||
-        timeStr.toLowerCase() === "manha"
-      ) {
-        hours = 8;
-      } else if (fileConfig.TIME_PATTERNS.HHhMM.test(timeStr)) {
+      if (fileConfig.TIME_PATTERNS.HHhMM.test(timeStr)) {
+        // Formato HHhMM (ex: 09h30)
         const timeParts = timeStr.split("h");
-        hours = parseInt(timeParts[0]);
-        minutes = parseInt(timeParts[1]);
-      } else if (fileConfig.TIME_PATTERNS.HHMM.test(timeStr)) {
-        const timeParts = timeStr.split(":");
-        hours = parseInt(timeParts[0]);
-        minutes = parseInt(timeParts[1]);
+        hours = parseInt(timeParts[0], 10);
+        minutes = parseInt(timeParts[1], 10);
       } else if (fileConfig.TIME_PATTERNS.HHh.test(timeStr)) {
-        hours = parseInt(timeStr.replace("h", ""));
+        // Formato HHh (ex: 09h)
+        hours = parseInt(timeStr.replace("h", ""), 10);
+        minutes = 0;
+      } else if (fileConfig.TIME_PATTERNS.HHMM.test(timeStr)) {
+        // Formato HH:MM (ex: 09:30)
+        const timeParts = timeStr.split(":");
+        hours = parseInt(timeParts[0], 10);
+        minutes = parseInt(timeParts[1], 10);
       } else {
-        try {
-          const tempTime = new Date(`2000-01-01T${timeStr}`);
-          if (!isNaN(tempTime.getTime())) {
-            hours = tempTime.getHours();
-            minutes = tempTime.getMinutes();
-          } else {
-            const timeMatch = timeStr.match(/^(\d{1,2})[^\d]*(\d{1,2})?/);
-            if (timeMatch) {
-              hours = parseInt(timeMatch[1]);
-              minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-            } else {
-              hours = 12;
-            }
-          }
-        } catch (e) {
-          hours = 12;
+        // Tentar extrair horas e minutos de outras formas
+        const timeMatch = timeStr.match(/^(\d{1,2})[^\d]*(\d{1,2})?/);
+        if (timeMatch) {
+          hours = parseInt(timeMatch[1], 10);
+          minutes = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
         }
       }
 
-      dateObj = new Date(year, month, day, hours, minutes);
-    } else {
-      // Tentar processar outros formatos de data
-      try {
-        // Tentativa 1: Combinar data e hora
-        dateObj = new Date(`${dateStr} ${timeStr}`);
-
-        // Se falhar, tentar outros formatos
-        if (isNaN(dateObj.getTime())) {
-          throw new Error("Formato inválido");
-        }
-      } catch (e) {
-        // Tentativa 2: Usar Date.parse
-        try {
-          const timestamp = Date.parse(`${dateStr} ${timeStr}`);
-          if (!isNaN(timestamp)) {
-            dateObj = new Date(timestamp);
-          } else {
-            // Vamos criar uma data simples para não perder as coordenadas
-            dateObj = new Date(); // Usar data atual como fallback
-          }
-        } catch (e2) {
-          // Último recurso
-          dateObj = new Date();
-        }
+      // Atualizar a hora no objeto de data apenas se temos uma data válida
+      if (isValidDate && dateObj) {
+        dateObj.setHours(hours, minutes, 0, 0);
       }
+
+      // Formatar para ISO para uso com input datetime-local
+      let isoDate = "";
+      if (isValidDate && dateObj) {
+        isoDate = dateObj.toISOString().slice(0, 16);
+      }
+
+      // Formatar data para exibição
+      let formattedDate = "";
+      if (isValidDate && dateObj) {
+        // Formatar no padrão DD/MM/YYYY HH:MM para exibição
+        const day = String(dateObj.getDate()).padStart(2, "0");
+        const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+        const year = dateObj.getFullYear();
+        const hoursStr = String(hours).padStart(2, "0");
+        const minutesStr = String(minutes).padStart(2, "0");
+
+        formattedDate = `${day}/${month}/${year} ${hoursStr}:${minutesStr}`;
+      }
+
+      // Retornar objeto com todas as informações
+      return {
+        dateObj: dateObj,
+        isValid: isValidDate,
+        isoDate: isoDate,
+        originalDate: originalDate,
+        originalTime: originalTime,
+        formattedDate: formattedDate,
+        hours: hours,
+        minutes: minutes,
+      };
+    } catch (error) {
+      Utilities.logError("Erro ao processar data/hora:", error);
+      return {
+        dateObj: new Date(),
+        isValid: false,
+        isoDate: "",
+        originalDate: dateValue,
+        originalTime: timeValue,
+        formattedDate: "",
+        hours: 0,
+        minutes: 0,
+      };
     }
-
-    return dateObj;
   }
 
   // Interface pública do módulo
