@@ -1,564 +1,177 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sistema de Rastreamento de Cães Perdidos</title>
-    <!-- Bootstrap CSS e ícones -->
+    <title>PetTrack - Monitoramento de Animal Perdido</title>
     <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css"
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
       rel="stylesheet"
     />
     <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.1/font/bootstrap-icons.min.css"
       rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"
     />
-    <!-- Leaflet CSS -->
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
-      rel="stylesheet"
-    />
-    <!-- CSS personalizado - Corrigido de "styles.css" para "style.css" -->
-    <link href="css/style.css" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="#">
-          <i class="bi bi-geo-alt-fill me-2"></i>PetRadar: Rastreamento de Cães
-          Perdidos
-        </a>
-        <button
-          class="navbar-toggler"
-          type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbarNav"
-        >
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-          <ul class="navbar-nav ms-auto">
-            <li class="nav-item">
-              <a
-                class="nav-link"
-                href="#"
-                data-bs-toggle="modal"
-                data-bs-target="#helpModal"
-              >
-                <i class="bi bi-question-circle me-1"></i>Ajuda
-              </a>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </nav>
-
-    <div class="container-fluid p-3">
-      <!-- Barra de ferramentas superior -->
-      <div class="row mb-3">
-        <div class="col-12">
-          <div class="card">
-            <div
-              class="card-body d-flex justify-content-between align-items-center py-2"
-            >
-              <div>
-                <button
-                  class="btn btn-primary me-2"
-                  type="button"
-                  data-bs-toggle="offcanvas"
-                  data-bs-target="#formSidebar"
-                >
-                  <i class="bi bi-plus-circle"></i> Novo Avistamento
-                </button>
-                <button
-                  class="btn btn-outline-secondary me-2"
-                  data-bs-toggle="modal"
-                  data-bs-target="#importModal"
-                >
-                  <i class="bi bi-upload"></i> Importar Dados
-                </button>
-                <!-- Novo botão para importar KML -->
-                <button
-                  class="btn btn-outline-success me-2"
-                  id="importKmlBtn"
-                  title="Importar arquivo KML"
-                >
-                  <i class="bi bi-geo"></i> Importar KML
-                </button>
-                <button class="btn btn-danger me-2" id="resetButton">
-                  <i class="bi bi-trash"></i> Limpar Todos Dados
-                </button>
-              </div>
-              <div class="d-flex align-items-center">
-                <span class="me-3"
-                  ><strong id="totalSightings">0</strong> avistamentos</span
-                >
-                <span class="me-3"
-                  ><strong id="totalDistance">0</strong> km percorridos</span
-                >
-                <span>Área: <strong id="bufferArea">0</strong> km²</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Layout principal -->
-      <div class="row">
-        <!-- Mapa expandido -->
-        <div class="col-lg-9">
-          <div class="card">
-            <div
-              class="card-header d-flex justify-content-between align-items-center"
-            >
-              <span>Mapa de Avistamentos</span>
-              <small class="text-muted"
-                >Último avistamento:
-                <strong id="lastSighting">Nenhum</strong></small
-              >
-            </div>
-            <div class="card-body p-0 position-relative">
-              <!-- Botão para mostrar/ocultar filtros -->
-              <button
-                class="btn btn-sm btn-primary filter-toggle"
-                id="filterToggleBtn"
-                title="Mostrar/Ocultar Filtros"
-              >
-                <i class="bi bi-funnel"></i> Filtros
-              </button>
-
-              <!-- Container de filtros (inicialmente oculto) -->
-              <div
-                id="filterContainer"
-                class="filter-container position-absolute"
-                style="display: none; top: 10px; left: 10px; right: 60px"
-              >
-                <div class="row g-2">
-                  <div class="col-md-4">
-                    <label for="dateFilterStart" class="form-label"
-                      >Data Início:</label
-                    >
-                    <input
-                      type="date"
-                      class="form-control form-control-sm"
-                      id="dateFilterStart"
-                    />
-                  </div>
-                  <div class="col-md-4">
-                    <label for="dateFilterEnd" class="form-label"
-                      >Data Fim:</label
-                    >
-                    <input
-                      type="date"
-                      class="form-control form-control-sm"
-                      id="dateFilterEnd"
-                    />
-                  </div>
-                  <div class="col-md-4">
-                    <label for="timeFilterType" class="form-label"
-                      >Filtro por Hora:</label
-                    >
-                    <select
-                      class="form-select form-select-sm"
-                      id="timeFilterType"
-                    >
-                      <option value="all">Todos horários</option>
-                      <option value="morning">Manhã (6h-12h)</option>
-                      <option value="afternoon">Tarde (12h-18h)</option>
-                      <option value="evening">Noite (18h-23h)</option>
-                      <option value="night">Madrugada (23h-6h)</option>
-                      <option value="custom">Personalizado</option>
-                    </select>
-                  </div>
-                  <div
-                    class="col-md-4"
-                    id="customTimeContainer"
-                    style="display: none"
-                  >
-                    <label for="timeFilterStart" class="form-label"
-                      >Hora Início:</label
-                    >
-                    <input
-                      type="time"
-                      class="form-control form-control-sm"
-                      id="timeFilterStart"
-                    />
-                  </div>
-                  <div
-                    class="col-md-4"
-                    id="customTimeEndContainer"
-                    style="display: none"
-                  >
-                    <label for="timeFilterEnd" class="form-label"
-                      >Hora Fim:</label
-                    >
-                    <input
-                      type="time"
-                      class="form-control form-control-sm"
-                      id="timeFilterEnd"
-                    />
-                  </div>
-                  <div class="col-md-4 d-flex align-items-end">
-                    <button
-                      class="btn btn-primary btn-sm w-100"
-                      id="applyFilterBtn"
-                    >
-                      <i class="bi bi-check-circle"></i> Aplicar Filtro
-                    </button>
-                  </div>
-                  <div class="col-md-4 d-flex align-items-end">
-                    <button
-                      class="btn btn-outline-secondary btn-sm w-100"
-                      id="clearFilterBtn"
-                    >
-                      <i class="bi bi-x-circle"></i> Limpar Filtro
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div id="map"></div>
-
-              <!-- Container para lista de camadas KML (será adicionado dinamicamente) -->
-              <div
-                id="kmlLayersContainer"
-                class="mt-2 p-2 border-top"
-                style="display: none"
-              >
-                <h6 class="mb-2"><i class="bi bi-layers"></i> Camadas KML</h6>
-                <div
-                  id="kmlLayersList"
-                  class="list-group list-group-flush small"
-                ></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Linha do tempo lateral -->
-        <div class="col-lg-3">
-          <div class="card h-100">
-            <div
-              class="card-header d-flex justify-content-between align-items-center"
-            >
-              <span>Linha do Tempo</span>
-              <span
-                class="badge bg-info"
-                id="filteredCountBadge"
-                style="display: none"
-                >0 filtrados</span
-              >
-            </div>
-            <div
-              class="card-body p-2"
-              style="overflow-y: auto; max-height: 80vh"
-            >
-              <div id="timeline" class="timeline">
-                <p class="text-center text-muted" id="noSightingsMessage">
-                  Nenhum avistamento registrado
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Sidebar para formulário de avistamento (oculto por padrão) -->
-    <div
-      class="offcanvas offcanvas-start"
-      tabindex="-1"
-      id="formSidebar"
-      aria-labelledby="formSidebarLabel"
-    >
-      <div class="offcanvas-header">
-        <h5 class="offcanvas-title" id="formSidebarLabel">
-          Adicionar Avistamento
-        </h5>
-        <button
-          type="button"
-          class="btn-close"
-          data-bs-dismiss="offcanvas"
-          aria-label="Close"
-        ></button>
-      </div>
-      <div class="offcanvas-body">
-        <form id="sightingForm">
-          <div class="mb-3">
-            <label for="dateTime" class="form-label">Data e Hora*</label>
-            <input
-              type="datetime-local"
-              class="form-control"
-              id="dateTime"
-              required
-            />
-          </div>
-          <div class="mb-3">
-            <label for="location" class="form-label"
-              >Localização (endereço ou coordenadas)</label
-            >
-            <input
-              type="text"
-              class="form-control"
-              id="location"
-              placeholder="Ex: Rua Exemplo, 123 ou -23.456, -46.789"
-            />
-            <small class="text-muted"
-              >Você também pode clicar no mapa para definir a localização</small
-            >
-          </div>
-          <div class="mb-3">
-            <label for="notes" class="form-label">Observações</label>
-            <textarea class="form-control" id="notes" rows="3"></textarea>
-          </div>
-          <button type="submit" class="btn btn-primary w-100">
-            Adicionar Avistamento
-          </button>
-        </form>
-      </div>
-    </div>
-
-    <!-- Modal de Importação -->
-    <div
-      class="modal fade"
-      id="importModal"
-      tabindex="-1"
-      aria-labelledby="importModalLabel"
-      aria-hidden="true"
-    >
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="importModalLabel">
-              Importar Avistamentos
+    <div class="container-fluid">
+      <div class="main-content">
+        <div class="col-md-3 p-3 sidebar">
+          <div class="controls-header">
+            <h5 class="controls-title">
+              <i class="bi bi-geo-alt-fill"></i> PetTrack
             </h5>
-            <button
-              type="button"
-              class="btn-close"
-              data-bs-dismiss="modal"
-              aria-label="Close"
-            ></button>
           </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label for="fileInput" class="form-label"
-                >Selecione um arquivo CSV ou Excel</label
-              >
-              <input
-                class="form-control"
-                type="file"
-                id="fileInput"
-                accept=".csv,.xlsx,.xls"
-              />
-              <small class="text-muted"
-                >O arquivo deve conter colunas para data, hora e
-                coordenadas</small
-              >
-            </div>
-            <div class="alert alert-info">
-              <h6>Formato esperado:</h6>
-              <p class="mb-1">- Coluna para data (ex: "Data")</p>
-              <p class="mb-1">
-                - Coluna para horário (ex: "Horário" - formato: "09h00")
-              </p>
-              <p class="mb-1">
-                - Coluna para coordenadas (formato: "-30.0271, -51.1940")
-              </p>
-              <p class="mb-1">- Coluna para observações (ex: "Obs")</p>
-              <p class="mb-0">
-                - Ou colunas separadas para latitude e longitude
-              </p>
-            </div>
-            <div id="tablePreview"></div>
+
+          <div id="statusMessages" class="mb-3"></div>
+
+          <div class="mb-4">
+            <label for="csvFileInput" class="form-label">
+              <i class="bi bi-file-earmark-text"></i> Importar avistamentos
+              (CSV):
+            </label>
+            <input
+              type="file"
+              id="csvFileInput"
+              class="form-control"
+              accept=".csv"
+              multiple
+            />
+            <small class="text-muted">
+              <i class="bi bi-info-circle"></i> Formato: .csv<br />
+              data, hora e local (latitude, longitude)<br />
+            </small>
           </div>
-          <div class="modal-footer">
+
+          <div class="mb-4">
+            <label for="geofenceFile" class="form-label">
+              <i class="bi bi-map"></i> Adicionar pontos específicos:
+            </label>
+            <input
+              type="file"
+              id="geofenceFile"
+              class="form-control"
+              accept=".geojson,.kml"
+              multiple
+            />
+            <small class="text-muted">
+              <i class="bi bi-info-circle"></i> Formatos aceitos: KML ou GeoJSON
+            </small>
+          </div>
+
+          <div class="mb-4">
+            <button id="addBufferBtn" class="btn btn-sm btn-danger w-100">
+              <i class="bi bi-plus-circle"></i> Adicionar buffer de busca
+            </button>
+            <small class="text-muted">
+              <i class="bi bi-info-circle"></i> Clique duas vezes no mapa para
+              definir centro e raio do buffer
+            </small>
+          </div>
+
+          <div class="mb-4">
             <button
-              type="button"
-              class="btn btn-secondary"
-              data-bs-dismiss="modal"
+              id="clearDataBtn"
+              class="btn btn-sm btn-outline-danger w-100"
             >
-              Cancelar
-            </button>
-            <button type="button" class="btn btn-primary" id="importButton">
-              Importar
+              <i class="bi bi-trash"></i> Limpar todos os dados
             </button>
           </div>
+
+          <div class="form-check form-switch mb-3">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="routeToggle"
+              checked
+            />
+            <label class="form-check-label" for="routeToggle">
+              <span class="icon-container"
+                ><i class="bi bi-signpost-2"></i
+              ></span>
+              <span>Mostrar rotas</span>
+            </label>
+          </div>
+
+          <div class="form-check form-switch mb-3">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="geofenceToggle"
+              checked
+            />
+            <label class="form-check-label" for="geofenceToggle">
+              <span class="icon-container"><i class="bi bi-pin-map"></i></span>
+              <span>Mostrar pontos específicos</span>
+            </label>
+          </div>
+
+          <div class="form-check form-switch mb-3">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="bufferToggle"
+              checked
+            />
+            <label class="form-check-label" for="bufferToggle">
+              <span class="icon-container"><i class="bi bi-bullseye"></i></span>
+              <span>Mostrar buffers</span>
+            </label>
+          </div>
+
+          <h6><i class="bi bi-signpost-2"></i> Rotas Registradas</h6>
+          <div id="routeList" class="mb-4">
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle"></i> Nenhuma rota cadastrada
+            </div>
+          </div>
+
+          <h6><i class="bi bi-pin-map"></i> Pontos Específicos</h6>
+          <div id="plantingAreaList" class="mb-4">
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle"></i> Nenhum ponto cadastrado
+            </div>
+          </div>
+
+          <h6><i class="bi bi-bullseye"></i> Buffers de Busca</h6>
+          <div id="bufferList" class="mb-4">
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle"></i> Nenhum buffer cadastrado
+            </div>
+          </div>
+
+          <div class="alert alert-light mb-3">
+            <small>
+              <i class="bi bi-mouse"></i> Clique no nome para centralizar no
+              mapa
+            </small>
+          </div>
+        </div>
+
+        <div class="col-md-9 map-container">
+          <div id="map"></div>
         </div>
       </div>
     </div>
 
-    <!-- Input para arquivos KML (oculto) -->
-    <input type="file" id="kmlFileInput" accept=".kml" style="display: none" />
-
-    <!-- Modal de Ajuda -->
-    <div
-      class="modal fade"
-      id="helpModal"
-      tabindex="-1"
-      aria-labelledby="helpModalLabel"
-      aria-hidden="true"
-    >
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="helpModalLabel">Ajuda - PetRadar</h5>
-            <button
-              type="button"
-              class="btn-close"
-              data-bs-dismiss="modal"
-              aria-label="Close"
-            ></button>
-          </div>
-          <div class="modal-body">
-            <h6 class="border-bottom pb-2">Como usar o sistema</h6>
-            <p>
-              O PetRadar ajuda a rastrear avistamentos de cães perdidos e
-              visualizar padrões de movimentação.
-            </p>
-
-            <div class="mb-3">
-              <h6>
-                <i class="bi bi-plus-circle text-primary me-2"></i>Adicionar
-                avistamentos
-              </h6>
-              <ul>
-                <li>
-                  Clique no botão "Novo Avistamento" ou diretamente no mapa para
-                  registrar um ponto
-                </li>
-                <li>Preencha a data/hora e coordenadas (obrigatórios)</li>
-                <li>Adicione observações relevantes se necessário</li>
-              </ul>
-            </div>
-
-            <div class="mb-3">
-              <h6>
-                <i class="bi bi-upload text-primary me-2"></i>Importar dados
-              </h6>
-              <ul>
-                <li>
-                  Clique em "Importar Dados" para carregar planilhas CSV ou
-                  Excel
-                </li>
-                <li>
-                  O arquivo deve conter colunas para data/hora, latitude e
-                  longitude
-                </li>
-                <li>
-                  Formatos de data suportados: ISO, DD/MM/YYYY, entre outros
-                </li>
-                <li>
-                  Formatos de hora suportados: HH:MM, HHh, HHhMM (ex: 09h00,
-                  14h30)
-                </li>
-              </ul>
-            </div>
-
-            <!-- Nova seção para importação KML -->
-            <div class="mb-3">
-              <h6>
-                <i class="bi bi-geo text-primary me-2"></i>Importar arquivos KML
-              </h6>
-              <ul>
-                <li>
-                  Clique em "Importar KML" para carregar arquivos de mapa do
-                  Google Earth/Maps
-                </li>
-                <li>Os arquivos KML podem conter pontos, linhas e polígonos</li>
-                <li>
-                  Você pode ativar/desativar a visualização de cada camada KML
-                </li>
-                <li>
-                  As camadas KML são exibidas junto com os avistamentos no mapa
-                </li>
-              </ul>
-            </div>
-
-            <div class="mb-3">
-              <h6><i class="bi bi-funnel text-primary me-2"></i>Filtros</h6>
-              <ul>
-                <li>
-                  Clique no botão "Filtros" para mostrar/ocultar os controles de
-                  filtro
-                </li>
-                <li>
-                  Filtre avistamentos por período específico de data e hora
-                </li>
-                <li>
-                  Use filtros predefinidos de período do dia ou defina um
-                  intervalo personalizado
-                </li>
-                <li>
-                  A numeração dos pontos é mantida mesmo ao aplicar filtros
-                </li>
-              </ul>
-            </div>
-
-            <div class="mb-3">
-              <h6>
-                <i class="bi bi-map text-primary me-2"></i>Visualização no mapa
-              </h6>
-              <ul>
-                <li>
-                  Pontos conectados mostram a rota cronológica de avistamentos
-                </li>
-                <li>
-                  Círculo vermelho (1km de raio) indica a área atual de busca
-                </li>
-                <li>
-                  Clique nos marcadores para ver detalhes de cada avistamento
-                </li>
-              </ul>
-            </div>
-
-            <div class="mb-3">
-              <h6>
-                <i class="bi bi-clock-history text-primary me-2"></i>Linha do
-                tempo
-              </h6>
-              <ul>
-                <li>Exibe todos os avistamentos em ordem cronológica</li>
-                <li>Clique em um item para centralizar o mapa nesse local</li>
-                <li>Use o botão "Excluir" para remover um avistamento</li>
-              </ul>
-            </div>
-
-            <div class="alert alert-info">
-              <strong>Lembre-se:</strong> Os dados são armazenados apenas no seu
-              navegador. Se limpar os dados do navegador, perderá o histórico de
-              avistamentos.
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button
-              type="button"
-              class="btn btn-secondary"
-              data-bs-dismiss="modal"
-            >
-              Fechar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Scripts externos -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-    <!-- Scripts de bibliotecas para KML -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/togeojson/0.16.0/togeojson.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
-
-    <!-- Scripts da aplicação -->
-    <script src="js/config.js"></script>
-    <script src="js/utilities.js"></script>
-    <script src="js/map.js"></script>
-    <script src="js/filters.js"></script>
-    <script src="js/timeline.js"></script>
-    <script src="js/import.js"></script>
-    <script src="js/kml-loader.js"></script>
-    <script src="js/app.js"></script>
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/@tmcw/togeojson"></script>
+    <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="mapModule.js"></script>
+    <script src="dataModule.js"></script>
+    <script src="routeRenderer.js"></script>
+    <script src="geofenceManager.js"></script>
+    <script src="pointsVisibility.js"></script>
+    <script src="bufferModule.js"></script>
+    <script src="routeManager.js"></script>
+    <script src="darkMode.js"></script>
+    <script src="main.js"></script>
   </body>
 </html>
